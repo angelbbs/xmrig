@@ -137,6 +137,22 @@ void xmrig::Pools::print() const
     for (const Pool &pool : m_data) {
         Log::print(GREEN_BOLD(" * ") WHITE_BOLD("POOL #%-7zu") "%s", i, pool.printableName().c_str());
 
+		const char *p = strrchr(pool.user().data(), '$');
+		if (p)
+		{
+			char *user = new char[p - pool.user().data() + 1]();
+			strncpy(user, pool.user().data(), static_cast<size_t>(p - pool.user().data()));
+			Log::print(WHITE("    NiceHash user #%-2zu") "%s", i, user);
+			delete[] user;
+		}
+
+		/*
+		if (pool.isNicehash())
+		{
+			//Log::print(GREEN_BOLD("   ") WHITE_BOLD("USER #%-7zu") "%s", i, pool.user().data());
+			Log::print(WHITE_BOLD("   NICEHASH USER #%-1zu") "%s", i, pool.user().data());
+		}
+		*/
         i++;
     }
 
