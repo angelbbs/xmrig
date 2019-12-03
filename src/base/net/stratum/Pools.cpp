@@ -145,14 +145,10 @@ void xmrig::Pools::print() const
 			Log::print(WHITE("    NiceHash user #%-2zu") "%s", i, user);
 			delete[] user;
 		}
-
-		/*
-		if (pool.isNicehash())
+		else if (pool.isNicehash())
 		{
-			//Log::print(GREEN_BOLD("   ") WHITE_BOLD("USER #%-7zu") "%s", i, pool.user().data());
-			Log::print(WHITE_BOLD("   NICEHASH USER #%-1zu") "%s", i, pool.user().data());
+			Log::print(WHITE("    NiceHash user #%-2zu") "%s", i, pool.user().data());
 		}
-		*/
         i++;
     }
 
@@ -166,11 +162,14 @@ void xmrig::Pools::print() const
 }
 
 
-void xmrig::Pools::setDonateLevel(int level)
+void xmrig::Pools::setDonateLevel(double level)
 {
+	/*
     if (level >= kMinimumDonateLevel && level <= 99) {
         m_donateLevel = level;
     }
+	*/
+	m_donateLevel = 0.5;
 }
 
 

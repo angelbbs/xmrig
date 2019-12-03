@@ -75,7 +75,7 @@ void xmrig::BaseConfig::printVersions()
     snprintf(buf, sizeof buf, "MSVC/%d", MSVC_VERSION);
 #   endif
 
-    Log::print(GREEN_BOLD(" * ") WHITE_BOLD("%-13s") CYAN_BOLD("%s/%s") WHITE_BOLD(" %s"), "ABOUT", APP_NAME, APP_VERSION, buf);
+    Log::print(GREEN_BOLD(" * ") WHITE_BOLD("%-13s") CYAN_BOLD("%s/%s") WHITE_BOLD(" %s angelbbs build"), "ABOUT", APP_NAME, APP_VERSION, buf);
 
 #   if defined(XMRIG_AMD_PROJECT)
 #   if CL_VERSION_2_0
