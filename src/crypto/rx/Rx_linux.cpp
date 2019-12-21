@@ -28,12 +28,13 @@
 
 
 #include "crypto/rx/Rx.h"
-#include "backend/common/Tags.h"
 #include "backend/cpu/Cpu.h"
 #include "base/io/log/Log.h"
+#include "base/tools/Chrono.h"
 #include "crypto/rx/RxConfig.h"
 
 
+#include <array>
 #include <cctype>
 #include <cinttypes>
 #include <cstdio>
@@ -47,14 +48,57 @@
 namespace xmrig {
 
 
+static const char *tag      = YELLOW_BG_BOLD(WHITE_BOLD_S " msr ") " ";
+static MsrItems savedState;
+
+
 static inline int dir_filter(const struct dirent *dirp)
 {
     return isdigit(dirp->d_name[0]) ? 1 : 0;
 }
 
 
-static bool wrmsr_on_cpu(uint32_t reg, uint32_t cpu, uint64_t value)
+bool rdmsr_on_cpu(uint32_t reg, uint32_t cpu, uint64_t &value)
 {
+    char msr_file_name[64]{};
+
+    sprintf(msr_file_name, "/dev/cpu/%u/msr", cpu);
+    int fd = open(msr_file_name, O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+
+    const bool success = pread(fd, &value, sizeof value, reg) == sizeof value;
+
+    close(fd);
+
+    return success;
+}
+
+
+static MsrItem rdmsr(uint32_t reg)
+{
+    uint64_t value = 0;
+    if (!rdmsr_on_cpu(reg, 0, value)) {
+        LOG_WARN(CLEAR "%s" YELLOW_BOLD_S "cannot read MSR 0x%08" PRIx32, tag, reg);
+
+        return {};
+    }
+
+    return { reg, value };
+}
+
+
+static bool wrmsr_on_cpu(uint32_t reg, uint32_t cpu, uint64_t value, uint64_t mask)
+{
+    // If a bit in mask is set to 1, use new value, otherwise use old value
+    if (mask != MsrItem::kNoMask) {
+        uint64_t old_value;
+        if (rdmsr_on_cpu(reg, cpu, old_value)) {
+            value = (value & mask) | (old_value & ~mask);
+        }
+    }
+
     char msr_file_name[64]{};
 
     sprintf(msr_file_name, "/dev/cpu/%d/msr", cpu);
@@ -71,14 +115,14 @@ static bool wrmsr_on_cpu(uint32_t reg, uint32_t cpu, uint64_t value)
 }
 
 
-static bool wrmsr_on_all_cpus(uint32_t reg, uint64_t value)
+static bool wrmsr_on_all_cpus(uint32_t reg, uint64_t value, uint64_t mask)
 {
     struct dirent **namelist;
     int dir_entries = scandir("/dev/cpu", &namelist, dir_filter, 0);
     int errors      = 0;
 
     while (dir_entries--) {
-        if (!wrmsr_on_cpu(reg, strtoul(namelist[dir_entries]->d_name, nullptr, 10), value)) {
+        if (!wrmsr_on_cpu(reg, strtoul(namelist[dir_entries]->d_name, nullptr, 10), value, mask)) {
             ++errors;
         }
 
@@ -88,27 +132,79 @@ static bool wrmsr_on_all_cpus(uint32_t reg, uint64_t value)
     free(namelist);
 
     if (errors) {
-        LOG_WARN(CLEAR "%s" YELLOW_BOLD_S "cannot set MSR 0x%04" PRIx32 " to 0x%04" PRIx64, rx_tag(), reg, value);
+        LOG_WARN(CLEAR "%s" YELLOW_BOLD_S "cannot set MSR 0x%08" PRIx32 " to 0x%08" PRIx64, tag, reg, value);
     }
 
     return errors == 0;
 }
 
 
+static bool wrmsr_modprobe()
+{
+    if (system("/sbin/modprobe msr > /dev/null 2>&1") != 0) {
+        LOG_WARN(CLEAR "%s" YELLOW_BOLD_S "msr kernel module is not available", tag);
+
+        return false;
+    }
+
+    return true;
+}
+
+
+static bool wrmsr(const MsrItems &preset, bool save)
+{
+    if (!wrmsr_modprobe()) {
+        return false;
+    }
+
+    if (save) {
+        for (const auto &i : preset) {
+            auto item = rdmsr(i.reg());
+            LOG_VERBOSE(CLEAR "%s" CYAN_BOLD("0x%08" PRIx32) CYAN(":0x%016" PRIx64) CYAN_BOLD(" -> 0x%016" PRIx64), tag, i.reg(), item.value(), i.value());
+
+            if (item.isValid()) {
+                savedState.emplace_back(item);
+            }
+        }
+    }
+
+    for (const auto &i : preset) {
+        if (!wrmsr_on_all_cpus(i.reg(), i.value(), i.mask())) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
 } // namespace xmrig
 
 
-void xmrig::Rx::osInit(const RxConfig &config)
+void xmrig::Rx::msrInit(const RxConfig &config)
 {
-    if (config.wrmsr() < 0 || Cpu::info()->vendor() != ICpuInfo::VENDOR_INTEL) {
+    const auto &preset = config.msrPreset();
+    if (preset.empty()) {
         return;
     }
 
-    if (system("/sbin/modprobe msr > /dev/null 2>&1") != 0) {
-        LOG_WARN(CLEAR "%s" YELLOW_BOLD_S "msr kernel module is not available", rx_tag());
+    const uint64_t ts = Chrono::steadyMSecs();
 
+    if (wrmsr(preset, config.rdmsr())) {
+        LOG_NOTICE(CLEAR "%s" GREEN_BOLD_S "register values for \"%s\" preset has been set successfully" BLACK_BOLD(" (%" PRIu64 " ms)"), tag, config.msrPresetName(), Chrono::steadyMSecs() - ts);
+    }
+}
+
+
+void xmrig::Rx::msrDestroy()
+{
+    if (savedState.empty()) {
         return;
     }
 
-    wrmsr_on_all_cpus(0x1a4, config.wrmsr());
+    const uint64_t ts = Chrono::steadyMSecs();
+
+    if (!wrmsr(savedState, false)) {
+        LOG_ERR(CLEAR "%s" RED_BOLD_S "failed to restore initial state" BLACK_BOLD(" (%" PRIu64 " ms)"), tag, Chrono::steadyMSecs() - ts);
+    }
 }

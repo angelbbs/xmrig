@@ -236,6 +236,7 @@ void xmrig::BaseTransform::transform(rapidjson::Document &doc, int key, const ch
     case IConfig::DryRunKey:      /* --dry-run */
     case IConfig::HttpEnabledKey: /* --http-enabled */
     case IConfig::DaemonKey:      /* --daemon */
+    case IConfig::VerboseKey:     /* --verbose */
         return transformBoolean(doc, key, true);
 
     case IConfig::ColorKey:          /* --no-color */
@@ -286,6 +287,9 @@ void xmrig::BaseTransform::transformBoolean(rapidjson::Document &doc, int key, b
 
     case IConfig::DryRunKey: /* --dry-run */
         return set(doc, "dry-run", enable);
+
+    case IConfig::VerboseKey: /* --verbose */
+        return set(doc, "verbose", enable);
 
     default:
         break;
