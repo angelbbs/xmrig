@@ -78,18 +78,10 @@ private:
     void setProxyDonate(int value);
     void setRetries(int retries);
     void setRetryPause(int retryPause);
-
-<<<<<<<<< Temporary merge branch 1
-    double m_donateLevel;
-    int m_retries;
-    int m_retryPause;
-    ProxyDonate m_proxyDonate;
-=========
     int m_donateLevel;
     int m_retries               = 5;
     int m_retryPause            = 5;
     ProxyDonate m_proxyDonate   = PROXY_DONATE_AUTO;
->>>>>>>>> Temporary merge branch 2
     std::vector<Pool> m_data;
 };
 //
