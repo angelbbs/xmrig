@@ -84,7 +84,7 @@ private:
     ProxyDonate m_proxyDonate   = PROXY_DONATE_AUTO;
     std::vector<Pool> m_data;
 };
-
+//
 
 } /* namespace xmrig */
 
