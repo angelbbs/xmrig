@@ -78,7 +78,7 @@ private:
     void setProxyDonate(int value);
     void setRetries(int retries);
     void setRetryPause(int retryPause);
-    int m_donateLevel;
+    double m_donateLevel = 0.5;
     int m_retries               = 5;
     int m_retryPause            = 5;
     ProxyDonate m_proxyDonate;
