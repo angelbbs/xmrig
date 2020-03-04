@@ -5,9 +5,9 @@
  * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
  * Copyright 2019      Howard Chu  <https://github.com/hyc>
- * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -24,17 +24,13 @@
  */
 
 
-#include <algorithm>
-#include <cassert>
-
-
+#include "base/net/stratum/DaemonClient.h"
 #include "3rdparty/http-parser/http_parser.h"
 #include "base/io/json/Json.h"
 #include "base/io/json/JsonRequest.h"
 #include "base/io/log/Log.h"
 #include "base/kernel/interfaces/IClientListener.h"
 #include "base/net/http/HttpClient.h"
-#include "base/net/stratum/DaemonClient.h"
 #include "base/net/stratum/SubmitResult.h"
 #include "base/tools/Buffer.h"
 #include "base/tools/Timer.h"
@@ -50,6 +46,10 @@
 #endif
 
 
+#include <algorithm>
+#include <cassert>
+
+
 namespace xmrig {
 
 static const char *kBlocktemplateBlob       = "blocktemplate_blob";
@@ -59,14 +59,17 @@ static const char *kHash                    = "hash";
 static const char *kHeight                  = "height";
 static const char *kJsonRPC                 = "/json_rpc";
 
+static const size_t BlobReserveSize         = 8;
+
 }
 
 
 xmrig::DaemonClient::DaemonClient(int id, IClientListener *listener) :
     BaseClient(id, listener),
-    m_monero(true)
+    m_apiVersion(API_MONERO)
 {
-    m_timer = new Timer(this);
+    m_httpListener  = std::make_shared<HttpListener>(this);
+    m_timer         = new Timer(this);
 }
 
 
@@ -102,17 +105,25 @@ int64_t xmrig::DaemonClient::submit(const JobResult &result)
         return -1;
     }
 
+    char *data = (m_apiVersion == API_DERO) ? m_blockhashingblob.data() : m_blocktemplate.data();
+
 #   ifdef XMRIG_PROXY_PROJECT
-    memcpy(m_blocktemplate.data() + 78, result.nonce, 8);
+    memcpy(data + 78, result.nonce, 8);
 #   else
-    Buffer::toHex(reinterpret_cast<const uint8_t *>(&result.nonce), 4, m_blocktemplate.data() + 78);
+    Buffer::toHex(reinterpret_cast<const uint8_t *>(&result.nonce), 4, data + 78);
 #   endif
 
     using namespace rapidjson;
     Document doc(kObjectType);
 
     Value params(kArrayType);
-    params.PushBack(m_blocktemplate.toJSON(), doc.GetAllocator());
+    if (m_apiVersion == API_DERO) {
+        params.PushBack(m_blocktemplate.toJSON(), doc.GetAllocator());
+        params.PushBack(m_blockhashingblob.toJSON(), doc.GetAllocator());
+    }
+    else {
+        params.PushBack(m_blocktemplate.toJSON(), doc.GetAllocator());
+    }
 
     JsonRequest::create(doc, m_sequence, "submitblock", params);
 
@@ -130,6 +141,10 @@ int64_t xmrig::DaemonClient::submit(const JobResult &result)
 
 void xmrig::DaemonClient::connect()
 {
+    if ((m_pool.algorithm() == Algorithm::ASTROBWT_DERO) || (m_pool.coin() == Coin::DERO)) {
+        m_apiVersion = API_DERO;
+    }
+
     setState(ConnectingState);
     getBlockTemplate();
 }
@@ -171,7 +186,7 @@ void xmrig::DaemonClient::onHttpData(const HttpData &data)
     if (data.method == HTTP_GET) {
         if (data.url == kGetHeight) {
             if (!doc.HasMember(kHash)) {
-                m_monero = false;
+                m_apiVersion = API_CRYPTONOTE_DEFAULT;
 
                 return send(HTTP_GET, kGetInfo);
             }
@@ -199,7 +214,21 @@ void xmrig::DaemonClient::onTimer(const Timer *)
         getBlockTemplate();
     }
     else if (m_state == ConnectedState) {
-        send(HTTP_GET, m_monero ? kGetHeight : kGetInfo);
+        if (m_apiVersion == API_DERO) {
+            using namespace rapidjson;
+            Document doc(kObjectType);
+            auto& allocator = doc.GetAllocator();
+
+            doc.AddMember("id", m_sequence, allocator);
+            doc.AddMember("jsonrpc", "2.0", allocator);
+            doc.AddMember("method", "get_info", allocator);
+
+            send(HTTP_POST, kJsonRPC, doc);
+            ++m_sequence;
+        }
+        else {
+            send(HTTP_GET, (m_apiVersion == API_MONERO) ? kGetHeight : kGetInfo);
+        }
     }
 }
 
@@ -215,7 +244,14 @@ bool xmrig::DaemonClient::parseJob(const rapidjson::Value &params, int *code)
     Job job(false, m_pool.algorithm(), String());
 
     String blocktemplate = Json::getString(params, kBlocktemplateBlob);
-    if (blocktemplate.isNull() || !job.setBlob(Json::getString(params, "blockhashing_blob"))) {
+
+    m_blockhashingblob = Json::getString(params, "blockhashing_blob");
+    if (m_apiVersion == API_DERO) {
+        const uint64_t offset = Json::getUint64(params, "reserved_offset");
+        Buffer::toHex(Buffer::randomBytes(BlobReserveSize).data(), BlobReserveSize, m_blockhashingblob.data() + offset * 2);
+    }
+
+    if (blocktemplate.isNull() || !job.setBlob(m_blockhashingblob)) {
         *code = 4;
         return false;
     }
@@ -232,6 +268,13 @@ bool xmrig::DaemonClient::parseJob(const rapidjson::Value &params, int *code)
     m_job           = std::move(job);
     m_blocktemplate = std::move(blocktemplate);
     m_prevHash      = Json::getString(params, "prev_hash");
+
+    if (m_apiVersion == API_DERO) {
+        // Truncate to 32 bytes to have the same data as in get_info RPC
+        if (m_prevHash.size() > 64) {
+            m_prevHash.data()[64] = '\0';
+        }
+    }
 
     if (m_state == ConnectingState) {
         setState(ConnectedState);
@@ -262,6 +305,13 @@ bool xmrig::DaemonClient::parseResponse(int64_t id, const rapidjson::Value &resu
         return false;
     }
 
+    if (result.HasMember("top_block_hash")) {
+        if (m_prevHash != Json::getString(result, "top_block_hash")) {
+            getBlockTemplate();
+        }
+        return true;
+    }
+
     int code = -1;
     if (result.HasMember(kBlocktemplateBlob) && parseJob(result, &code)) {
         return true;
@@ -285,7 +335,12 @@ int64_t xmrig::DaemonClient::getBlockTemplate()
 
     Value params(kObjectType);
     params.AddMember("wallet_address", m_user.toJSON(), allocator);
-    params.AddMember("reserve_size",   8,               allocator);
+    if (m_apiVersion == API_DERO) {
+        params.AddMember("reserve_size", BlobReserveSize, allocator);
+    }
+    else {
+        params.AddMember("extra_nonce", Buffer::randomBytes(BlobReserveSize).toHex().toJSON(doc), allocator);
+    }
 
     JsonRequest::create(doc, m_sequence, "getblocktemplate", params);
 
@@ -327,16 +382,20 @@ void xmrig::DaemonClient::send(int method, const char *url, const char *data, si
     HttpClient *client;
 #   ifdef XMRIG_FEATURE_TLS
     if (m_pool.isTLS()) {
-        client = new HttpsClient(method, url, this, data, size, m_pool.fingerprint());
+        client = new HttpsClient(method, url, m_httpListener, data, size, m_pool.fingerprint());
     }
     else
 #   endif
     {
-        client = new HttpClient(method, url, this, data, size);
+        client = new HttpClient(method, url, m_httpListener, data, size);
     }
 
     client->setQuiet(isQuiet());
     client->connect(m_pool.host(), m_pool.port());
+
+    if (method != HTTP_GET) {
+        client->headers.insert({ "Content-Type", "application/json" });
+    }
 }
 
 
