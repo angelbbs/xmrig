@@ -1,5 +1,9 @@
 set(HEADERS_BASE
     src/base/api/interfaces/IApiListener.h
+    src/base/crypto/Algorithm.h
+    src/base/crypto/CnAlgo.h
+    src/base/crypto/Coin.h
+    src/base/crypto/keccak.h
     src/base/io/Console.h
     src/base/io/json/Json.h
     src/base/io/json/JsonChain.h
@@ -34,7 +38,6 @@ set(HEADERS_BASE
     src/base/kernel/Signals.h
     src/base/net/dns/Dns.h
     src/base/net/dns/DnsRecord.h
-    src/base/net/http/Fetch.h
     src/base/net/http/Http.h
     src/base/net/http/HttpListener.h
     src/base/net/stratum/BaseClient.h
@@ -50,7 +53,9 @@ set(HEADERS_BASE
     src/base/net/stratum/strategies/StrategyProxy.h
     src/base/net/stratum/SubmitResult.h
     src/base/net/stratum/Url.h
-    src/base/net/tools/RecvBuf.h
+    src/base/net/tools/LineReader.h
+    src/base/net/tools/MemPool.h
+    src/base/net/tools/NetBuffer.h
     src/base/net/tools/Storage.h
     src/base/tools/Arguments.h
     src/base/tools/Baton.h
@@ -62,6 +67,9 @@ set(HEADERS_BASE
    )
 
 set(SOURCES_BASE
+    src/base/crypto/Algorithm.cpp
+    src/base/crypto/Coin.cpp
+    src/base/crypto/keccak.cpp
     src/base/io/Console.cpp
     src/base/io/json/Json.cpp
     src/base/io/json/JsonChain.cpp
@@ -81,10 +89,7 @@ set(SOURCES_BASE
     src/base/kernel/Signals.cpp
     src/base/net/dns/Dns.cpp
     src/base/net/dns/DnsRecord.cpp
-    src/base/net/http/Fetch.cpp
     src/base/net/http/Http.cpp
-    src/base/net/http/HttpData.cpp
-    src/base/net/http/HttpListener.cpp
     src/base/net/stratum/BaseClient.cpp
     src/base/net/stratum/Client.cpp
     src/base/net/stratum/Job.cpp
@@ -96,6 +101,8 @@ set(SOURCES_BASE
     src/base/net/stratum/strategies/FailoverStrategy.cpp
     src/base/net/stratum/strategies/SinglePoolStrategy.cpp
     src/base/net/stratum/Url.cpp
+    src/base/net/tools/LineReader.cpp
+    src/base/net/tools/NetBuffer.cpp
     src/base/tools/Arguments.cpp
     src/base/tools/Buffer.cpp
     src/base/tools/String.cpp
@@ -148,12 +155,12 @@ if (WITH_HTTP)
         src/base/kernel/interfaces/IHttpListener.h
         src/base/kernel/interfaces/IJsonReader.h
         src/base/kernel/interfaces/ITcpServerListener.h
+        src/base/net/http/Fetch.h
         src/base/net/http/HttpApiResponse.h
         src/base/net/http/HttpClient.h
         src/base/net/http/HttpContext.h
         src/base/net/http/HttpData.h
         src/base/net/http/HttpResponse.h
-        src/base/net/http/HttpServer.h
         src/base/net/stratum/DaemonClient.h
         src/base/net/stratum/SelfSelectClient.h
         src/base/net/tools/TcpServer.h
@@ -165,11 +172,13 @@ if (WITH_HTTP)
         src/base/api/Httpd.cpp
         src/base/api/requests/ApiRequest.cpp
         src/base/api/requests/HttpApiRequest.cpp
+        src/base/net/http/Fetch.cpp
         src/base/net/http/HttpApiResponse.cpp
         src/base/net/http/HttpClient.cpp
         src/base/net/http/HttpContext.cpp
+        src/base/net/http/HttpData.cpp
+        src/base/net/http/HttpListener.cpp
         src/base/net/http/HttpResponse.cpp
-        src/base/net/http/HttpServer.cpp
         src/base/net/stratum/DaemonClient.cpp
         src/base/net/stratum/SelfSelectClient.cpp
         src/base/net/tools/TcpServer.cpp

@@ -27,7 +27,7 @@
 #define XMRIG_COIN_H
 
 
-#include "crypto/common/Algorithm.h"
+#include "base/crypto/Algorithm.h"
 #include "rapidjson/fwd.h"
 
 
@@ -41,7 +41,8 @@ public:
         INVALID = -1,
         MONERO,
         ARQMA,
-        DERO
+        DERO,
+        KEVA
     };
 
 
