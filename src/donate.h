@@ -44,6 +44,7 @@
  * XMR: 48edfHu7V9Z84YzzMa6fUueoELZ9ZRXq9VetWzYGzKt52XU5xvqgzYnDK9URnRoJMk1j8nLwEVsaSWJ4fhdUyZijBGUicoD
  * BTC: 1P7ujsXeX7GxQwHNnJsRMgAdNkFZmNVqJT
  */
+
 constexpr const double kDefaultDonateLevel = 0.5;
 constexpr const double kMinimumDonateLevel = 0.5;
 
