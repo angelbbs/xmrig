@@ -25,8 +25,8 @@
 
 
 #include "base/net/tls/TlsContext.h"
+#include "base/io/Env.h"
 #include "base/io/log/Log.h"
-#include "base/kernel/Env.h"
 #include "base/net/tls/TlsConfig.h"
 
 
@@ -156,7 +156,7 @@ bool xmrig::TlsContext::load(const TlsConfig &config)
     SSL_CTX_set_options(m_ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
     SSL_CTX_set_options(m_ctx, SSL_OP_CIPHER_SERVER_PREFERENCE);
 
-#   if OPENSSL_VERSION_NUMBER >= 0x1010100fL
+#   if OPENSSL_VERSION_NUMBER >= 0x1010100fL && !defined(LIBRESSL_VERSION_NUMBER)
     SSL_CTX_set_max_early_data(m_ctx, 0);
 #   endif
 
@@ -184,7 +184,7 @@ bool xmrig::TlsContext::setCipherSuites(const char *ciphersuites)
         return true;
     }
 
-#   if OPENSSL_VERSION_NUMBER >= 0x1010100fL
+#   if OPENSSL_VERSION_NUMBER >= 0x1010100fL && !defined(LIBRESSL_VERSION_NUMBER)
     if (SSL_CTX_set_ciphersuites(m_ctx, ciphersuites) == 1) {
         return true;
     }

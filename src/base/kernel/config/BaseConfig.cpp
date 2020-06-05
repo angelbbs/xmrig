@@ -24,13 +24,14 @@
 
 
 #include "base/kernel/config/BaseConfig.h"
+#include "3rdparty/rapidjson/document.h"
 #include "base/io/json/Json.h"
 #include "base/io/log/Log.h"
 #include "base/kernel/interfaces/IJsonReader.h"
-#include "rapidjson/document.h"
 #include "version.h"
 
 
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -89,13 +90,13 @@ bool xmrig::BaseConfig::read(const IJsonReader &reader, const char *fileName)
     m_watch        = reader.getBool(kWatch, m_watch);
     m_logFile      = reader.getString(kLogFile);
     m_userAgent    = reader.getString(kUserAgent);
+    m_printTime    = std::min(reader.getUint(kPrintTime, m_printTime), 3600U);
 
 #   ifdef XMRIG_FEATURE_TLS
     m_tls = reader.getValue(kTls);
 #   endif
 
     Log::setColors(reader.getBool(kColors, Log::isColors()));
-    setPrintTime(reader.getUint(kPrintTime, 60));
     setVerbose(reader.getValue(kVerbose));
 
     const auto &api = reader.getObject(kApi);
@@ -145,11 +146,16 @@ void xmrig::BaseConfig::printVersions()
 
     std::string libs;
 
-#   if defined(XMRIG_FEATURE_TLS) && defined(OPENSSL_VERSION_TEXT)
+#   if defined(XMRIG_FEATURE_TLS)
     {
+#       if defined(LIBRESSL_VERSION_TEXT)
+        snprintf(buf, sizeof buf, "LibreSSL/%s ", LIBRESSL_VERSION_TEXT + 9);
+        libs += buf;
+#       elif defined(OPENSSL_VERSION_TEXT)
         constexpr const char *v = OPENSSL_VERSION_TEXT + 8;
         snprintf(buf, sizeof buf, "OpenSSL/%.*s ", static_cast<int>(strchr(v, ' ') - v), v);
         libs += buf;
+#       endif
     }
 #   endif
 

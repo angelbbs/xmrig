@@ -28,6 +28,7 @@
 
 
 #include "backend/cuda/CudaBackend.h"
+#include "3rdparty/rapidjson/document.h"
 #include "backend/common/Hashrate.h"
 #include "backend/common/interfaces/IWorker.h"
 #include "backend/common/Tags.h"
@@ -43,7 +44,11 @@
 #include "base/tools/String.h"
 #include "core/config/Config.h"
 #include "core/Controller.h"
-#include "rapidjson/document.h"
+
+
+#ifdef XMRIG_ALGO_ASTROBWT
+#   include "backend/cuda/runners/CudaAstroBWTRunner.h"
+#endif
 
 
 #ifdef XMRIG_FEATURE_API
@@ -212,6 +217,14 @@ public:
 
         Log::print(WHITE_BOLD("|  # | GPU |  BUS ID |    I |   T |   B | BF |  BS |  MEM | NAME"));
 
+        size_t algo_l3 = algo.l3();
+
+#       ifdef XMRIG_ALGO_ASTROBWT
+        if (algo.family() == Algorithm::ASTROBWT) {
+            algo_l3 = CudaAstroBWTRunner::BWT_DATA_STRIDE * 17 + 1024;
+        }
+#       endif
+
         size_t i = 0;
         for (const auto &data : threads) {
             Log::print("|" CYAN_BOLD("%3zu") " |" CYAN_BOLD("%4u") " |" YELLOW(" %7s") " |" CYAN_BOLD("%5d") " |" CYAN_BOLD("%4d") " |"
@@ -224,7 +237,7 @@ public:
                        data.thread.blocks(),
                        data.thread.bfactor(),
                        data.thread.bsleep(),
-                       (data.thread.threads() * data.thread.blocks()) * algo.l3() / oneMiB,
+                       (data.thread.threads() * data.thread.blocks()) * algo_l3 / oneMiB,
                        data.device.name().data()
                        );
 

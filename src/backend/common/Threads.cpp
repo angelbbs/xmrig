@@ -24,9 +24,9 @@
 
 
 #include "backend/common/Threads.h"
+#include "3rdparty/rapidjson/document.h"
 #include "backend/cpu/CpuThreads.h"
-#include "base/crypto/CnAlgo.h"
-#include "rapidjson/document.h"
+#include "crypto/cn/CnAlgo.h"
 
 
 #ifdef XMRIG_FEATURE_OPENCL
