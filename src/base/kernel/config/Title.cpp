@@ -1,11 +1,4 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018      Lee Clagett <https://github.com/vtnerd>
  * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
  * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
@@ -23,31 +16,43 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef XMRIG_BACKEND_TAGS_H
-#define XMRIG_BACKEND_TAGS_H
+
+#include "base/kernel/config/Title.h"
+#include "3rdparty/rapidjson/document.h"
+#include "base/io/Env.h"
+#include "version.h"
 
 
-#include <cstdint>
+xmrig::Title::Title(const rapidjson::Value &value)
+{
+    if (value.IsBool()) {
+        m_enabled = value.GetBool();
+    }
+    else if (value.IsString()) {
+        m_value = value.GetString();
+    }
+}
 
 
-namespace xmrig {
+rapidjson::Value xmrig::Title::toJSON() const
+{
+    if (isEnabled() && !m_value.isNull()) {
+        return m_value.toJSON();
+    }
+
+    return rapidjson::Value(m_enabled);
+}
 
 
-const char *backend_tag(uint32_t backend);
-const char *cpu_tag();
+xmrig::String xmrig::Title::value() const
+{
+    if (!isEnabled()) {
+        return {};
+    }
 
+    if (m_value.isNull()) {
+        return APP_NAME " " APP_VERSION;
+    }
 
-#ifdef XMRIG_FEATURE_OPENCL
-const char *ocl_tag();
-#endif
-
-
-#ifdef XMRIG_FEATURE_CUDA
-const char *cuda_tag();
-#endif
-
-
-} // namespace xmrig
-
-
-#endif /* XMRIG_BACKEND_TAGS_H */
+    return Env::expand(m_value);
+}

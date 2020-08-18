@@ -127,10 +127,18 @@ static AlgoName const algorithm_names[] = {
     { "kawpow",                    nullptr,            Algorithm::KAWPOW_RVN      },
     { "kawpow/rvn",                nullptr,            Algorithm::KAWPOW_RVN      },
 #   endif
+    { "cryptonight/ccx",           "cn/ccx",           Algorithm::CN_CCX          },
+    { "cryptonight/conceal",       "cn/conceal",       Algorithm::CN_CCX          },
 };
 
 
 } /* namespace xmrig */
+
+
+xmrig::Algorithm::Algorithm(const rapidjson::Value &value) :
+    m_id(parse(value.GetString()))
+{
+}
 
 
 rapidjson::Value xmrig::Algorithm::toJSON() const
@@ -138,6 +146,12 @@ rapidjson::Value xmrig::Algorithm::toJSON() const
     using namespace rapidjson;
 
     return isValid() ? Value(StringRef(shortName())) : Value(kNullType);
+}
+
+
+rapidjson::Value xmrig::Algorithm::toJSON(rapidjson::Document &) const
+{
+    return toJSON();
 }
 
 
@@ -292,6 +306,7 @@ xmrig::Algorithm::Family xmrig::Algorithm::family(Id id)
     case CN_RWZ:
     case CN_ZLS:
     case CN_DOUBLE:
+    case CN_CCX:
         return CN;
 
 #   ifdef XMRIG_ALGO_CN_LITE

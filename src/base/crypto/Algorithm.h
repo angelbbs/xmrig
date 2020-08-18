@@ -63,6 +63,7 @@ public:
         CN_HEAVY_XHV,  // "cn-heavy/xhv"     CryptoNight-Heavy (modified, Haven Protocol only).
         CN_PICO_0,     // "cn-pico"          CryptoNight-Pico
         CN_PICO_TLO,   // "cn-pico/tlo"      CryptoNight-Pico (TLO)
+        CN_CCX,        // "cn/ccx"           Conceal (CCX)
         RX_0,          // "rx/0"             RandomX (reference configuration).
         RX_WOW,        // "rx/wow"           RandomWOW (Wownero).
         RX_LOKI,       // "rx/loki"          RandomXL (Loki).
@@ -91,6 +92,7 @@ public:
     inline Algorithm() = default;
     inline Algorithm(const char *algo) : m_id(parse(algo)) {}
     inline Algorithm(Id id) : m_id(id)                     {}
+    Algorithm(const rapidjson::Value &value);
 
     inline bool isCN() const                          { auto f = family(); return f == CN || f == CN_LITE || f == CN_HEAVY || f == CN_PICO; }
     inline bool isEqual(const Algorithm &other) const { return m_id == other.m_id; }
@@ -107,6 +109,7 @@ public:
     inline operator Algorithm::Id() const                 { return m_id; }
 
     rapidjson::Value toJSON() const;
+    rapidjson::Value toJSON(rapidjson::Document &doc) const;
     size_t l2() const;
     size_t l3() const;
     uint32_t maxIntensity() const;

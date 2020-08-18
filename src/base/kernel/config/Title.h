@@ -1,11 +1,4 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018      Lee Clagett <https://github.com/vtnerd>
  * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
  * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
@@ -23,31 +16,35 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef XMRIG_BACKEND_TAGS_H
-#define XMRIG_BACKEND_TAGS_H
+#ifndef XMRIG_TITLE_H
+#define XMRIG_TITLE_H
 
 
-#include <cstdint>
+#include "3rdparty/rapidjson/fwd.h"
+#include "base/tools/String.h"
 
 
 namespace xmrig {
 
 
-const char *backend_tag(uint32_t backend);
-const char *cpu_tag();
+class Title
+{
+public:
+    Title() = default;
+    Title(const rapidjson::Value &value);
 
+    inline bool isEnabled() const   { return m_enabled; }
 
-#ifdef XMRIG_FEATURE_OPENCL
-const char *ocl_tag();
-#endif
+    rapidjson::Value toJSON() const;
+    String value() const;
 
-
-#ifdef XMRIG_FEATURE_CUDA
-const char *cuda_tag();
-#endif
+private:
+    bool m_enabled  = true;
+    String m_value;
+};
 
 
 } // namespace xmrig
 
 
-#endif /* XMRIG_BACKEND_TAGS_H */
+#endif /* XMRIG_TITLE_H */
