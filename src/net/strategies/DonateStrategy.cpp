@@ -108,6 +108,7 @@ xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener 
 #   endif
 
     //m_pools.emplace_back(kDonateHost, donatePort, m_userId, nullptr, 0, true);
+    //m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true);
 
     m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true, false, mode);
 
