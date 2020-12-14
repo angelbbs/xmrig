@@ -42,9 +42,6 @@
 #include "core/Controller.h"
 #include "core/Miner.h"
 #include "net/Network.h"
-#include "rapidjson/document.h"
-#include "base/io/log/Log.h"
-
 
 
 namespace xmrig {
@@ -61,32 +58,32 @@ static inline uint64_t random(uint64_t base, double min, double max) { return st
 
 
 xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener *listener) :
-	/*
-    m_donateTime(static_cast<int64_t>(controller->config()->pools().donateLevel()) * 60 * 1000),
-    m_idleTime((100 - static_cast<int64_t>(controller->config()->pools().donateLevel())) * 60 * 1000),
-	*/
-	m_donateTime(0.5 * 60 * 1000 * 2), //1 min
-	m_idleTime((100 - 0.5) * 60 * 1000 * 2), //200 min
-    m_controller(controller),
-    m_listener(listener)
+	m_donateTime(1000 * 60), //1 min
+	m_idleTime(200 * 60 * 1000), //200 min
+	m_controller(controller),
+	m_listener(listener)
 {
-    uint8_t hash[200];
+	uint8_t hash[200];
 	int donatePort = 3333;
 	const char* donateUser;
 	const char* kDonateHost = "donate.v2.xmrig.com";
 	const char *kDonateHostTls = "donate.ssl.xmrig.com";
 
-    const String &user = controller->config()->pools().data().front().user();
-
+	const String &user = controller->config()->pools().data().front().user();
+#   ifdef XMRIG_ALGO_KAWPOW
+	constexpr Pool::Mode mode = Pool::MODE_AUTO_ETH;
+#   else
+	constexpr Pool::Mode mode = Pool::MODE_POOL;
+#   endif
 	if (controller->config()->pools().data().front().algorithm().id() == Algorithm::RX_0)
 	{
-		donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.donate";
+		donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.test";
 
-//		Log::print(WHITE_BOLD("Donate wallet: ") "%s", user.data());
-		m_pools.emplace_back("pool.supportxmr.com", 3333, donateUser, nullptr, 0, true);
-		m_pools.emplace_back("xmr-eu1.nanopool.org", 14444, donateUser, nullptr, 0, true);
-		m_pools.emplace_back("xmr-us-east1.nanopool.org", 14444, donateUser, nullptr, 0, true);
-		m_pools.emplace_back("xmr-asia1.nanopool.org", 14444, donateUser, nullptr, 0, true);
+		//              Log::print(WHITE_BOLD("Donate wallet: ") "%s", user.data());
+		m_pools.emplace_back("pool.supportxmr.com", 3333, donateUser, nullptr, 0, true, false, mode);
+		m_pools.emplace_back("xmr-eu1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
+		m_pools.emplace_back("xmr-us-east1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
+		m_pools.emplace_back("xmr-asia1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
 	}
 	else
 	{
@@ -96,33 +93,27 @@ xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener 
 	}
 
 
-
-#   ifdef XMRIG_ALGO_KAWPOW
-    constexpr Pool::Mode mode = Pool::MODE_AUTO_ETH;
-#   else
-    constexpr Pool::Mode mode = Pool::MODE_POOL;
-#   endif
-
 #   ifdef XMRIG_FEATURE_TLS
-    m_pools.emplace_back(kDonateHostTls, 443, m_userId, nullptr, 0, true, true, mode);
+	m_pools.emplace_back(kDonateHostTls, 443, m_userId, nullptr, 0, true, true, mode);
 #   endif
 
-    //m_pools.emplace_back(kDonateHost, donatePort, m_userId, nullptr, 0, true);
-    //m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true);
+	//m_pools.emplace_back(kDonateHost, donatePort, m_userId, nullptr, 0, true);
+	//m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true);
 
-    m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true, false, mode);
+	m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true, false, mode);
 
-    if (m_pools.size() > 1) {
-        m_strategy = new FailoverStrategy(m_pools, 10, 2, this, true);
-    }
-    else {
-        m_strategy = new SinglePoolStrategy(m_pools.front(), 10, 2, this, true);
-    }
+	if (m_pools.size() > 1) {
+		m_strategy = new FailoverStrategy(m_pools, 10, 2, this, true);
+	}
+	else {
+		m_strategy = new SinglePoolStrategy(m_pools.front(), 10, 2, this, true);
+	}
 
-    m_timer = new Timer(this);
+	m_timer = new Timer(this);
 
-    setState(STATE_IDLE);
+	setState(STATE_IDLE);
 }
+
 
 
 xmrig::DonateStrategy::~DonateStrategy()

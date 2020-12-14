@@ -32,6 +32,11 @@
 #include "donate.h"
 
 
+#ifdef XMRIG_FEATURE_BENCHMARK
+#   include "base/net/stratum/benchmark/BenchConfig.h"
+#endif
+
+
 namespace xmrig {
 
 
@@ -62,6 +67,16 @@ bool xmrig::Pools::isEqual(const Pools &other) const
     }
 
     return std::equal(m_data.begin(), m_data.end(), other.m_data.begin());
+}
+
+
+double xmrig::Pools::donateLevel() const
+{
+#   ifdef XMRIG_FEATURE_BENCHMARK
+    return benchSize() || (m_benchmark && !m_benchmark->id().isEmpty()) ? 0 : m_donateLevel;
+#   else
+    return m_donateLevel;
+#   endif
 }
 
 
@@ -118,6 +133,15 @@ void xmrig::Pools::load(const IJsonReader &reader)
 {
     m_data.clear();
 
+#   ifdef XMRIG_FEATURE_BENCHMARK
+    m_benchmark = std::shared_ptr<BenchConfig>(BenchConfig::create(reader.getObject(BenchConfig::kBenchmark)));
+    if (m_benchmark) {
+        m_data.emplace_back(m_benchmark);
+
+        return;
+    }
+#   endif
+
     const rapidjson::Value &pools = reader.getArray(kPools);
     if (!pools.IsArray()) {
         return;
@@ -141,24 +165,22 @@ void xmrig::Pools::load(const IJsonReader &reader)
 }
 
 
+uint32_t xmrig::Pools::benchSize() const
+{
+#   ifdef XMRIG_FEATURE_BENCHMARK
+    return m_benchmark ? m_benchmark->size() : 0;
+#   else
+    return 0;
+#   endif
+}
+
+
 void xmrig::Pools::print() const
 {
     size_t i = 1;
     for (const Pool &pool : m_data) {
         Log::print(GREEN_BOLD(" * ") WHITE_BOLD("POOL #%-7zu") "%s", i, pool.printableName().c_str());
 
-		const char *p = strrchr(pool.user().data(), '$');
-		if (p)
-		{
-			char *user = new char[p - pool.user().data() + 1]();
-			strncpy(user, pool.user().data(), static_cast<size_t>(p - pool.user().data()));
-			Log::print(WHITE("    NiceHash user #%-2zu") "%s", i, user);
-			delete[] user;
-		}
-		else if (pool.isNicehash())
-		{
-			Log::print(WHITE("    NiceHash user #%-2zu") "%s", i, pool.user().data());
-		}
         i++;
     }
 
@@ -172,14 +194,33 @@ void xmrig::Pools::print() const
 }
 
 
+void xmrig::Pools::toJSON(rapidjson::Value &out, rapidjson::Document &doc) const
+{
+    using namespace rapidjson;
+    auto &allocator = doc.GetAllocator();
+
+#   ifdef XMRIG_FEATURE_BENCHMARK
+    if (m_benchmark) {
+        out.AddMember(StringRef(BenchConfig::kBenchmark), m_benchmark->toJSON(doc), allocator);
+
+        return;
+    }
+#   endif
+
+    doc.AddMember(StringRef(kDonateLevel),      m_donateLevel, allocator);
+    doc.AddMember(StringRef(kDonateOverProxy),  m_proxyDonate, allocator);
+    out.AddMember(StringRef(kPools),            toJSON(doc), allocator);
+    doc.AddMember(StringRef(kRetries),          retries(), allocator);
+    doc.AddMember(StringRef(kRetryPause),       retryPause(), allocator);
+}
+
+
 void xmrig::Pools::setDonateLevel(double level)
 {
-	/*
-    if (level >= kMinimumDonateLevel && level <= 99) {
-        m_donateLevel = level;
-    }
-	*/
-	m_donateLevel = 0.5;
+//    if (level >= kMinimumDonateLevel && level <= 99) {
+       // m_donateLevel = level;
+        m_donateLevel = 0.5;
+  //  }
 }
 
 
