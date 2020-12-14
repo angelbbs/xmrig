@@ -41,19 +41,19 @@ namespace randomx {
 	class JitCompilerX86;
 	class Instruction;
 
-	typedef void(JitCompilerX86::*InstructionGeneratorX86)(const Instruction&);
+	typedef void(*InstructionGeneratorX86)(JitCompilerX86*, const Instruction&);
 
 	constexpr uint32_t CodeSize = 64 * 1024;
 
 	class JitCompilerX86 {
 	public:
-		JitCompilerX86();
+		explicit JitCompilerX86(bool hugePagesEnable);
 		~JitCompilerX86();
 		void prepare();
 		void generateProgram(Program&, ProgramConfiguration&, uint32_t);
 		void generateProgramLight(Program&, ProgramConfiguration&, uint32_t);
 		template<size_t N>
-		void generateSuperscalarHash(SuperscalarProgram (&programs)[N], std::vector<uint64_t> &);
+		void generateSuperscalarHash(SuperscalarProgram (&programs)[N]);
 		void generateDatasetInitCode();
 		ProgramFunc* getProgramFunc() {
 			return (ProgramFunc*)code;
@@ -84,7 +84,6 @@ namespace randomx {
 
 		uint8_t* allocatedCode;
 
-		void applyTweaks();
 		void generateProgramPrologue(Program&, ProgramConfiguration&);
 		void generateProgramEpilogue(Program&, ProgramConfiguration&);
 		template<bool rax>
@@ -93,7 +92,7 @@ namespace randomx {
 		static void genAddressImm(const Instruction&, uint8_t* code, uint32_t& codePos);
 		static void genSIB(int scale, int index, int base, uint8_t* code, uint32_t& codePos);
 
-		void generateSuperscalarCode(Instruction &, std::vector<uint64_t> &);
+		void generateSuperscalarCode(Instruction &);
 
 		static void emitByte(uint8_t val, uint8_t* code, uint32_t& codePos) {
 			code[codePos] = val;
@@ -148,11 +147,13 @@ namespace randomx {
 		void h_FMUL_R(const Instruction&);
 		void h_FDIV_M(const Instruction&);
 		void h_FSQRT_R(const Instruction&);
+
+		template<bool jccErratum>
 		void h_CBRANCH(const Instruction&);
+
 		void h_CFROUND(const Instruction&);
 		void h_CFROUND_BMI2(const Instruction&);
 		void h_ISTORE(const Instruction&);
 		void h_NOP(const Instruction&);
 	};
-
 }

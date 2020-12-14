@@ -61,13 +61,19 @@ protected:
     inline size_t packages() const override         { return 1; }
     inline size_t threads() const override          { return m_threads; }
     inline Vendor vendor() const override           { return m_vendor; }
+    inline bool jccErratum() const override         { return m_jccErratum; }
 
 protected:
     char m_brand[64 + 6]{};
     size_t m_threads;
     Vendor m_vendor         = VENDOR_UNKNOWN;
+    bool m_jccErratum       = false;
 
 private:
+    uint32_t m_procInfo     = 0;
+    uint32_t m_family       = 0;
+    uint32_t m_model        = 0;
+    uint32_t m_stepping     = 0;
     Assembly m_assembly     = Assembly::NONE;
     MsrMod m_msrMod         = MSR_MOD_NONE;
     std::bitset<FLAG_MAX> m_flags;

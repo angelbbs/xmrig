@@ -1,12 +1,7 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2017-2019 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2020 XMRig       <support@xmrig.com>
+ * Copyright (c) 2017-2019 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
+ * Copyright (c) 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2020 XMRig       <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -57,8 +52,16 @@
 namespace xmrig {
 
 
-static const std::array<const char *, ICpuInfo::FLAG_MAX> flagNames     = { "aes", "avx2", "avx512f", "bmi2", "osxsave", "pdpe1gb", "sse2", "ssse3", "xop", "popcnt", "cat_l3" };
-static const std::array<const char *, ICpuInfo::MSR_MOD_MAX> msrNames   = { "none", "ryzen", "intel", "custom" };
+constexpr size_t kCpuFlagsSize                                  = 12;
+static const std::array<const char *, kCpuFlagsSize> flagNames  = { "aes", "avx2", "avx512f", "bmi2", "osxsave", "pdpe1gb", "sse2", "ssse3", "sse4.1", "xop", "popcnt", "cat_l3" };
+static_assert(kCpuFlagsSize == ICpuInfo::FLAG_MAX, "kCpuFlagsSize and FLAG_MAX mismatch");
+
+
+#ifdef XMRIG_FEATURE_MSR
+constexpr size_t kMsrArraySize                                  = 5;
+static const std::array<const char *, kMsrArraySize> msrNames   = { MSR_NAMES_LIST };
+static_assert(kMsrArraySize == ICpuInfo::MSR_MOD_MAX, "kMsrArraySize and MSR_MOD_MAX mismatch");
+#endif
 
 
 static inline void cpuid(uint32_t level, int32_t output[4])
@@ -141,6 +144,7 @@ static inline bool has_bmi2()       { return has_feature(EXTENDED_FEATURES,     
 static inline bool has_pdpe1gb()    { return has_feature(PROCESSOR_EXT_INFO,    EDX_Reg, 1 << 26); }
 static inline bool has_sse2()       { return has_feature(PROCESSOR_INFO,        EDX_Reg, 1 << 26); }
 static inline bool has_ssse3()      { return has_feature(PROCESSOR_INFO,        ECX_Reg, 1 << 9); }
+static inline bool has_sse41()      { return has_feature(PROCESSOR_INFO,        ECX_Reg, 1 << 19); }
 static inline bool has_xop()        { return has_feature(0x80000001,            ECX_Reg, 1 << 11); }
 static inline bool has_popcnt()     { return has_feature(PROCESSOR_INFO,        ECX_Reg, 1 << 23); }
 static inline bool has_cat_l3()     { return has_feature(EXTENDED_FEATURES,     EBX_Reg, 1 << 15) && has_feature(0x10, EBX_Reg, 1 << 1); }
@@ -177,6 +181,7 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
     m_flags.set(FLAG_PDPE1GB, has_pdpe1gb());
     m_flags.set(FLAG_SSE2,    has_sse2());
     m_flags.set(FLAG_SSSE3,   has_ssse3());
+    m_flags.set(FLAG_SSE41,   has_sse41());
     m_flags.set(FLAG_XOP,     has_xop());
     m_flags.set(FLAG_POPCNT,  has_popcnt());
     m_flags.set(FLAG_CAT_L3,  has_cat_l3());
@@ -192,15 +197,32 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
         memcpy(vendor + 4, &data[3], 4);
         memcpy(vendor + 8, &data[2], 4);
 
+        cpuid(PROCESSOR_INFO, data);
+
+        m_procInfo = data[EAX_Reg];
+        m_family = get_masked(m_procInfo, 12, 8) + get_masked(m_procInfo, 28, 20);
+        m_model = (get_masked(m_procInfo, 20, 16) << 4) | get_masked(m_procInfo, 8, 4);
+        m_stepping = get_masked(m_procInfo, 4, 0);
+
         if (memcmp(vendor, "AuthenticAMD", 12) == 0) {
             m_vendor = VENDOR_AMD;
 
-            cpuid(PROCESSOR_INFO, data);
-            const int32_t family = get_masked(data[EAX_Reg], 12, 8) + get_masked(data[EAX_Reg], 28, 20);
-
-            if (family >= 23) {
+            if (m_family >= 0x17) {
                 m_assembly = Assembly::RYZEN;
-                m_msrMod   = MSR_MOD_RYZEN;
+
+                switch (m_family) {
+                case 0x17:
+                    m_msrMod = MSR_MOD_RYZEN_17H;
+                    break;
+
+                case 0x19:
+                    m_msrMod = MSR_MOD_RYZEN_19H;
+                    break;
+
+                default:
+                    m_msrMod = MSR_MOD_NONE;
+                    break;
+                }
             }
             else {
                 m_assembly = Assembly::BULLDOZER;
@@ -210,6 +232,36 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
             m_vendor   = VENDOR_INTEL;
             m_assembly = Assembly::INTEL;
             m_msrMod   = MSR_MOD_INTEL;
+
+            struct
+            {
+                unsigned int stepping : 4;
+                unsigned int model : 4;
+                unsigned int family : 4;
+                unsigned int processor_type : 2;
+                unsigned int reserved1 : 2;
+                unsigned int ext_model : 4;
+                unsigned int ext_family : 8;
+                unsigned int reserved2 : 4;
+            } processor_info;
+
+            memcpy(&processor_info, data, sizeof(processor_info));
+
+            // Intel JCC erratum mitigation
+            if (processor_info.family == 6) {
+                const uint32_t model = processor_info.model | (processor_info.ext_model << 4);
+                const uint32_t stepping = processor_info.stepping;
+
+                // Affected CPU models and stepping numbers are taken from https://www.intel.com/content/dam/support/us/en/documents/processors/mitigations-jump-conditional-code-erratum.pdf
+                m_jccErratum =
+                    ((model == 0x4E) && (stepping == 0x3)) ||
+                    ((model == 0x55) && (stepping == 0x4)) ||
+                    ((model == 0x5E) && (stepping == 0x3)) ||
+                    ((model == 0x8E) && (stepping >= 0x9) && (stepping <= 0xC)) ||
+                    ((model == 0x9E) && (stepping >= 0x9) && (stepping <= 0xD)) ||
+                    ((model == 0xA6) && (stepping == 0x0)) ||
+                    ((model == 0xAE) && (stepping == 0xA));
+            }
         }
     }
 #   endif
@@ -286,6 +338,10 @@ rapidjson::Value xmrig::BasicCpuInfo::toJSON(rapidjson::Document &doc) const
     Value out(kObjectType);
 
     out.AddMember("brand",      StringRef(brand()), allocator);
+    out.AddMember("family",     m_family, allocator);
+    out.AddMember("model",      m_model, allocator);
+    out.AddMember("stepping",   m_stepping, allocator);
+    out.AddMember("proc_info",  m_procInfo, allocator);
     out.AddMember("aes",        hasAES(), allocator);
     out.AddMember("avx2",       hasAVX2(), allocator);
     out.AddMember("x64",        isX64(), allocator);
@@ -296,12 +352,23 @@ rapidjson::Value xmrig::BasicCpuInfo::toJSON(rapidjson::Document &doc) const
     out.AddMember("packages",   static_cast<uint64_t>(packages()), allocator);
     out.AddMember("nodes",      static_cast<uint64_t>(nodes()), allocator);
     out.AddMember("backend",    StringRef(backend()), allocator);
+
+#   ifdef XMRIG_FEATURE_MSR
     out.AddMember("msr",        StringRef(msrNames[msrMod()]), allocator);
+#   else
+    out.AddMember("msr",        "none", allocator);
+#   endif
 
 #   ifdef XMRIG_FEATURE_ASM
     out.AddMember("assembly",   StringRef(Assembly(assembly()).toString()), allocator);
 #   else
     out.AddMember("assembly",   "none", allocator);
+#   endif
+
+#   if defined(__x86_64__) || defined(_M_AMD64)
+    out.AddMember("arch", "x86_64", allocator);
+#   else
+    out.AddMember("arch", "x86", allocator);
 #   endif
 
     Value flags(kArrayType);

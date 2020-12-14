@@ -68,11 +68,13 @@ private:
     void allocateRandomX_VM();
 #   endif
 
+    bool nextRound();
     bool verify(const Algorithm &algorithm, const uint8_t *referenceValue);
     bool verify2(const Algorithm &algorithm, const uint8_t *referenceValue);
     void allocateCnCtx();
     void consumeJob();
 
+    alignas(16) uint8_t m_hash[N * 32]{ 0 };
     const Algorithm m_algorithm;
     const Assembly m_assembly;
     const bool m_astrobwtAVX2;
@@ -81,13 +83,17 @@ private:
     const CnHash::AlgoVariant m_av;
     const int m_astrobwtMaxSize;
     const Miner *m_miner;
+    const size_t m_threads;
     cryptonight_ctx *m_ctx[N];
-    uint8_t m_hash[N * 32]{ 0 };
     VirtualMemory *m_memory = nullptr;
     WorkerJob<N> m_job;
 
 #   ifdef XMRIG_ALGO_RANDOMX
-    randomx_vm *m_vm = nullptr;
+    randomx_vm *m_vm        = nullptr;
+#   endif
+
+#   ifdef XMRIG_FEATURE_BENCHMARK
+    uint32_t m_benchSize    = 0;
 #   endif
 };
 

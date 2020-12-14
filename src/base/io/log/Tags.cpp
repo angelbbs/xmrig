@@ -70,6 +70,16 @@ const char *xmrig::Tags::randomx()
     return tag;
 }
 #endif
+
+
+#ifdef XMRIG_FEATURE_BENCHMARK
+const char *xmrig::Tags::bench()
+{
+    static const char *tag = GREEN_BG_BOLD(WHITE_BOLD_S " bench   ");
+
+    return tag;
+}
+#endif
 #endif
 
 
@@ -97,6 +107,16 @@ const char *xmrig::Tags::nvidia()
 const char *xmrig::Tags::opencl()
 {
     static const char *tag = MAGENTA_BG_BOLD(WHITE_BOLD_S " opencl  ");
+
+    return tag;
+}
+#endif
+
+
+#ifdef XMRIG_FEATURE_PROFILING
+const char* xmrig::Tags::profiler()
+{
+    static const char* tag = CYAN_BG_BOLD(WHITE_BOLD_S " profile ");
 
     return tag;
 }

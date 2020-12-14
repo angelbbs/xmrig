@@ -45,6 +45,10 @@ if (CMAKE_CXX_COMPILER_ID MATCHES GNU)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++")
     endif()
 
+    if (BUILD_STATIC)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
+    endif()
+
     add_definitions(/D_GNU_SOURCE)
 
     if (${CMAKE_VERSION} VERSION_LESS "3.1.0")
@@ -60,8 +64,8 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES MSVC)
     set(CMAKE_C_FLAGS_RELEASE "/MT /O2 /Oi /DNDEBUG /GL")
     set(CMAKE_CXX_FLAGS_RELEASE "/MT /O2 /Oi /DNDEBUG /GL")
 
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/Ob1 /GL")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Ob1 /GL")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "/Ob1 /Zi /DRELWITHDEBINFO")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/Ob1 /Zi /DRELWITHDEBINFO")
 
     add_definitions(/D_CRT_SECURE_NO_WARNINGS)
     add_definitions(/D_CRT_NONSTDC_NO_WARNINGS)
@@ -90,6 +94,10 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES Clang)
         if (HAVE_ROTR)
             add_definitions(/DHAVE_ROTR)
         endif()
+    endif()
+
+    if (BUILD_STATIC)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
     endif()
 
 endif()

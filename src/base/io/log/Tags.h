@@ -40,6 +40,9 @@ public:
 #   ifdef XMRIG_ALGO_RANDOMX
     static const char *randomx();
 #   endif
+#   ifdef XMRIG_FEATURE_BENCHMARK
+    static const char *bench();
+#   endif
 #   endif
 
 #   ifdef XMRIG_PROXY_PROJECT
@@ -52,6 +55,10 @@ public:
 
 #   ifdef XMRIG_FEATURE_OPENCL
     static const char *opencl();
+#   endif
+
+#   ifdef XMRIG_FEATURE_PROFILING
+    static const char* profiler();
 #   endif
 };
 

@@ -6,8 +6,8 @@
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
  * Copyright 2018      Lee Clagett <https://github.com/vtnerd>
- * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -29,7 +29,6 @@
 
 #include "backend/common/Thread.h"
 #include "backend/cpu/CpuLaunchData.h"
-#include "base/tools/Object.h"
 
 
 #ifdef XMRIG_FEATURE_OPENCL
@@ -48,6 +47,7 @@ namespace xmrig {
 class Hashrate;
 class WorkersPrivate;
 class Job;
+class Benchmark;
 
 
 template<class T>
@@ -59,16 +59,23 @@ public:
     Workers();
     ~Workers();
 
+    inline void start(const std::vector<T> &data)   { start(data, true); }
+
+    bool tick(uint64_t ticks);
     const Hashrate *hashrate() const;
-    void setBackend(IBackend *backend);
-    void start(const std::vector<T> &data);
-    void stop();
-    void tick(uint64_t ticks);
     void jobEarlyNotification(const Job&);
+    void setBackend(IBackend *backend);
+    void stop();
+
+#   ifdef XMRIG_FEATURE_BENCHMARK
+    void start(const std::vector<T> &data, const std::shared_ptr<Benchmark> &benchmark);
+#   endif
 
 private:
     static IWorker *create(Thread<T> *handle);
     static void onReady(void *arg);
+
+    void start(const std::vector<T> &data, bool sleep);
 
     std::vector<Thread<T> *> m_workers;
     WorkersPrivate *d_ptr;

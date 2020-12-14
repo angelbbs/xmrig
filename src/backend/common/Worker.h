@@ -6,8 +6,8 @@
  * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
  * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
  * Copyright 2018      Lee Clagett <https://github.com/vtnerd>
- * Copyright 2018-2019 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2019 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@
 
 
 #include <atomic>
-#include <cstdint>
 
 
 #include "backend/common/interfaces/IWorker.h"
@@ -44,19 +43,21 @@ public:
 
     inline const VirtualMemory *memory() const override   { return nullptr; }
     inline size_t id() const override                     { return m_id; }
-    inline uint64_t hashCount() const override            { return m_hashCount.load(std::memory_order_relaxed); }
-    inline uint64_t timestamp() const override            { return m_timestamp.load(std::memory_order_relaxed); }
+    inline uint64_t rawHashes() const override            { return m_count; }
     inline void jobEarlyNotification(const Job&) override {}
+
+    void getHashrateData(uint64_t& hashCount, uint64_t& timeStamp) const override;
 
 protected:
     void storeStats();
 
     const int64_t m_affinity;
     const size_t m_id;
-    std::atomic<uint64_t> m_hashCount;
-    std::atomic<uint64_t> m_timestamp;
-    uint32_t m_node     = 0;
-    uint64_t m_count    = 0;
+    std::atomic<uint32_t> m_index   = {};
+    uint32_t m_node                 = 0;
+    uint64_t m_count                = 0;
+    uint64_t m_hashCount[2]         = {};
+    uint64_t m_timestamp[2]         = {};
 };
 
 

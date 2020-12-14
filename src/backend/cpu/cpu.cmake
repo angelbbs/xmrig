@@ -47,6 +47,7 @@ if (WITH_HWLOC)
         src/backend/cpu/platform/HwlocCpuInfo.h
         )
 elseif (WITH_LIBCPUID)
+    message(WARNING, "libcpuid support is deprecated and will be removed in future versions.")
     set(WITH_HWLOC OFF)
 
     add_subdirectory(src/3rdparty/libcpuid)
@@ -72,6 +73,10 @@ endif()
 
 if (XMRIG_ARM)
     list(APPEND SOURCES_CPUID src/backend/cpu/platform/BasicCpuInfo_arm.cpp)
+
+    if (XMRIG_OS_UNIX)
+        list(APPEND SOURCES_CPUID src/backend/cpu/platform/lscpu_arm.cpp)
+    endif()
 else()
     list(APPEND SOURCES_CPUID src/backend/cpu/platform/BasicCpuInfo.cpp)
 endif()

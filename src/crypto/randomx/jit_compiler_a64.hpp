@@ -38,7 +38,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace randomx {
 
 	class Program;
-	class ProgramConfiguration;
+	struct ProgramConfiguration;
 	class SuperscalarProgram;
 	class Instruction;
 
@@ -46,7 +46,7 @@ namespace randomx {
 
 	class JitCompilerA64 {
 	public:
-		JitCompilerA64();
+		explicit JitCompilerA64(bool hugePagesEnable);
 		~JitCompilerA64();
 
 		void prepare() {}
@@ -54,7 +54,7 @@ namespace randomx {
 		void generateProgramLight(Program&, ProgramConfiguration&, uint32_t);
 
 		template<size_t N>
-		void generateSuperscalarHash(SuperscalarProgram(&programs)[N], std::vector<uint64_t> &);
+		void generateSuperscalarHash(SuperscalarProgram(&programs)[N]);
 
 		void generateDatasetInitCode() {}
 

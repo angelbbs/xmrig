@@ -46,31 +46,35 @@
 
 namespace xmrig {
 
-static const char *kInit        = "init";
-static const char *kMode        = "mode";
-static const char *kOneGbPages  = "1gb-pages";
-static const char *kRdmsr       = "rdmsr";
-static const char *kWrmsr       = "wrmsr";
-static const char *kCacheQoS    = "cache_qos";
+const char *RxConfig::kInit                     = "init";
+const char *RxConfig::kField                    = "randomx";
+const char *RxConfig::kMode                     = "mode";
+const char *RxConfig::kOneGbPages               = "1gb-pages";
+const char *RxConfig::kRdmsr                    = "rdmsr";
+const char *RxConfig::kWrmsr                    = "wrmsr";
+const char *RxConfig::kScratchpadPrefetchMode   = "scratchpad_prefetch_mode";
+const char *RxConfig::kCacheQoS                 = "cache_qos";
 
 #ifdef XMRIG_FEATURE_HWLOC
-static const char *kNUMA        = "numa";
+const char *RxConfig::kNUMA                     = "numa";
 #endif
+
 
 static const std::array<const char *, RxConfig::ModeMax> modeNames = { "auto", "fast", "light" };
 
 
 #ifdef XMRIG_FEATURE_MSR
-constexpr size_t kMsrArraySize = 4;
+constexpr size_t kMsrArraySize = 5;
 
 static const std::array<MsrItems, kMsrArraySize> msrPresets = {
     MsrItems(),
-    MsrItems{{ 0xC0011020, 0x0 }, { 0xC0011021, 0x40, ~0x20ULL }, { 0xC0011022, 0x510000 }, { 0xC001102b, 0x1808cc16 }},
+    MsrItems{{ 0xC0011020, 0ULL }, { 0xC0011021, 0x40ULL, ~0x20ULL }, { 0xC0011022, 0x1510000ULL }, { 0xC001102b, 0x2000cc16ULL }},
+    MsrItems{{ 0xC0011020, 0x0004480000000000ULL }, { 0xC0011021, 0x001c000200000040ULL, ~0x20ULL }, { 0xC0011022, 0xc000000401500000ULL }, { 0xC001102b, 0x2000cc14ULL }},
     MsrItems{{ 0x1a4, 0xf }},
     MsrItems()
 };
 
-static const std::array<const char *, kMsrArraySize> modNames = { "none", "ryzen", "intel", "custom" };
+static const std::array<const char *, kMsrArraySize> modNames = { MSR_NAMES_LIST };
 
 static_assert (kMsrArraySize == ICpuInfo::MSR_MOD_MAX, "kMsrArraySize and MSR_MOD_MAX mismatch");
 #endif
@@ -117,6 +121,11 @@ bool xmrig::RxConfig::read(const rapidjson::Value &value)
             m_numa = numa.GetBool();
         }
 #       endif
+
+        const uint32_t mode = static_cast<uint32_t>(Json::getInt(value, kScratchpadPrefetchMode, static_cast<int>(m_scratchpadPrefetchMode)));
+        if (mode < ScratchpadPrefetchMax) {
+            m_scratchpadPrefetchMode = static_cast<ScratchpadPrefetchMode>(mode);
+        }
 
         return true;
     }
@@ -170,6 +179,8 @@ rapidjson::Value xmrig::RxConfig::toJSON(rapidjson::Document &doc) const
         obj.AddMember(StringRef(kNUMA), m_numa, allocator);
     }
 #   endif
+
+    obj.AddMember(StringRef(kScratchpadPrefetchMode), static_cast<int>(m_scratchpadPrefetchMode), allocator);
 
     return obj;
 }

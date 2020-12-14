@@ -41,7 +41,7 @@ namespace randomx {
 
 	class JitCompilerFallback {
 	public:
-		JitCompilerFallback() {
+		explicit JitCompilerFallback(bool) {
 			throw std::runtime_error("JIT compilation is not supported on this platform");
 		}
 		void prepare() {}
@@ -52,7 +52,7 @@ namespace randomx {
 
 		}
 		template<size_t N>
-		void generateSuperscalarHash(SuperscalarProgram(&programs)[N], std::vector<uint64_t> &) {
+		void generateSuperscalarHash(SuperscalarProgram(&programs)[N]) {
 
 		}
 		void generateDatasetInitCode() {

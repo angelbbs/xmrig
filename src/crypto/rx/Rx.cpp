@@ -26,12 +26,12 @@
 
 
 #include "crypto/rx/Rx.h"
-#include "backend/common/Tags.h"
 #include "backend/cpu/CpuConfig.h"
 #include "backend/cpu/CpuThreads.h"
-#include "base/io/log/Log.h"
 #include "crypto/rx/RxConfig.h"
 #include "crypto/rx/RxQueue.h"
+#include "crypto/randomx/randomx.h"
+#include "crypto/randomx/aes_hash.hpp"
 
 
 namespace xmrig {
@@ -42,6 +42,7 @@ class RxPrivate;
 
 static bool osInitialized   = false;
 static bool msrInitialized  = false;
+static bool msrEnabled      = false;
 static RxPrivate *d_ptr     = nullptr;
 
 
@@ -93,24 +94,31 @@ bool xmrig::Rx::init(const T &seed, const RxConfig &config, const CpuConfig &cpu
     if (seed.algorithm().family() != Algorithm::RANDOM_X) {
         if (msrInitialized) {
             msrDestroy();
-            msrInitialized = false;
+            msrInitialized  = false;
+            msrEnabled      = false;
         }
 
         return true;
     }
 
-    if (isReady(seed)) {
-        return true;
-    }
+    randomx_set_scratchpad_prefetch_mode(config.scratchpadPrefetchMode());
+    randomx_set_huge_pages_jit(cpu.isHugePagesJit());
 
     if (!msrInitialized) {
-        msrInit(config, cpu.threads().get(seed.algorithm()).data());
-        msrInitialized = true;
+        msrEnabled      = msrInit(config, cpu.threads().get(seed.algorithm()).data());
+        msrInitialized  = true;
     }
 
     if (!osInitialized) {
         setupMainLoopExceptionFrame();
+        if (!cpu.isHwAES()) {
+            SelectSoftAESImpl(cpu.threads().get(seed.algorithm()).count());
+        }
         osInitialized = true;
+    }
+
+    if (isReady(seed)) {
+        return true;
     }
 
     d_ptr->queue.enqueue(seed, config.nodeset(), config.threads(cpu.limit()), cpu.isHugePages(), config.isOneGbPages(), config.mode(), cpu.priority());
@@ -126,9 +134,15 @@ bool xmrig::Rx::isReady(const T &seed)
 }
 
 
-#ifndef XMRIG_FEATURE_MSR
-void xmrig::Rx::msrInit(const RxConfig &, const std::vector<CpuThread> &)
+#ifdef XMRIG_FEATURE_MSR
+bool xmrig::Rx::isMSR()
 {
+    return msrEnabled;
+}
+#else
+bool xmrig::Rx::msrInit(const RxConfig &, const std::vector<CpuThread> &)
+{
+    return false;
 }
 
 

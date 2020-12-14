@@ -38,6 +38,7 @@
 #include "base/kernel/Platform.h"
 #include "base/net/stratum/Job.h"
 #include "base/tools/Object.h"
+#include "base/tools/Profiler.h"
 #include "base/tools/Timer.h"
 #include "core/config/Config.h"
 #include "core/Controller.h"
@@ -120,7 +121,7 @@ public:
         for (int i = 0; i < Algorithm::MAX; ++i) {
             const Algorithm algo(static_cast<Algorithm::Id>(i));
 
-            if (isEnabled(algo)) {
+            if (algo.isValid() && isEnabled(algo)) {
                 algorithms.push_back(algo);
             }
         }
@@ -133,8 +134,6 @@ public:
             Nonce::pause(true);
         }
 
-        active = true;
-
         if (reset) {
             Nonce::reset(job.index());
         }
@@ -145,7 +144,7 @@ public:
 
         Nonce::touch();
 
-        if (enabled) {
+        if (active && enabled) {
             Nonce::pause(false);
         }
 
@@ -164,7 +163,7 @@ public:
 
         reply.AddMember("version",      APP_VERSION, allocator);
         reply.AddMember("kind",         APP_KIND, allocator);
-        reply.AddMember("ua",           StringRef(Platform::userAgent()), allocator);
+        reply.AddMember("ua",           Platform::userAgent().toJSON(), allocator);
         reply.AddMember("cpu",          Cpu::toJSON(doc), allocator);
         reply.AddMember("donate_level", controller->config()->pools().donateLevel(), allocator);
         reply.AddMember("paused",       !enabled, allocator);
@@ -204,7 +203,7 @@ public:
                 continue;
             }
 
-            for (size_t i = 0; i < hr->threads(); i++) {
+            for (size_t i = 1; i < hr->threads(); i++) {
                 Value thread(kArrayType);
                 thread.PushBack(Hashrate::normalize(hr->calc(i, Hashrate::ShortInterval)),  allocator);
                 thread.PushBack(Hashrate::normalize(hr->calc(i, Hashrate::MediumInterval)), allocator);
@@ -243,14 +242,59 @@ public:
 #   endif
 
 
+    static inline void printProfile()
+    {
+#       ifdef XMRIG_FEATURE_PROFILING
+        ProfileScopeData* data[ProfileScopeData::MAX_DATA_COUNT];
+
+        const uint32_t n = std::min<uint32_t>(ProfileScopeData::s_dataCount, ProfileScopeData::MAX_DATA_COUNT);
+        memcpy(data, ProfileScopeData::s_data, n * sizeof(ProfileScopeData*));
+
+        std::sort(data, data + n, [](ProfileScopeData* a, ProfileScopeData* b) {
+            return strcmp(a->m_threadId, b->m_threadId) < 0;
+        });
+
+        for (uint32_t i = 0; i < n;)
+        {
+            uint32_t n1 = i;
+            while ((n1 < n) && (strcmp(data[i]->m_threadId, data[n1]->m_threadId) == 0)) {
+                ++n1;
+            }
+
+            std::sort(data + i, data + n1, [](ProfileScopeData* a, ProfileScopeData* b) {
+                return a->m_totalCycles > b->m_totalCycles;
+            });
+
+            for (uint32_t j = i; j < n1; ++j) {
+                ProfileScopeData* p = data[j];
+                LOG_INFO("%s Thread %6s | %-30s | %7.3f%% | %9.0f ns",
+                    Tags::profiler(),
+                    p->m_threadId,
+                    p->m_name,
+                    p->m_totalCycles * 100.0 / data[i]->m_totalCycles,
+                    p->m_totalCycles / p->m_totalSamples * 1e9 / ProfileScopeData::s_tscSpeed
+                );
+            }
+
+            LOG_INFO("%s --------------|--------------------------------|----------|-------------", Tags::profiler());
+
+            i = n1;
+        }
+#       endif
+    }
+
+
     void printHashrate(bool details)
     {
         char num[16 * 4] = { 0 };
-        double speed[3] = { 0.0 };
+        double speed[3]  = { 0.0 };
+        uint32_t count   = 0;
 
         for (auto backend : backends) {
             const auto hashrate = backend->hashrate();
             if (hashrate) {
+                ++count;
+
                 speed[0] += hashrate->calc(Hashrate::ShortInterval);
                 speed[1] += hashrate->calc(Hashrate::MediumInterval);
                 speed[2] += hashrate->calc(Hashrate::LargeInterval);
@@ -259,7 +303,13 @@ public:
             backend->printHashrate(details);
         }
 
-        double scale = 1.0;
+        if (!count) {
+            return;
+        }
+
+        printProfile();
+
+        double scale  = 1.0;
         const char* h = "H/s";
 
         if ((speed[0] >= 1e6) || (speed[1] >= 1e6) || (speed[2] >= 1e6) || (maxHashrate[algorithm] >= 1e6)) {
@@ -274,6 +324,12 @@ public:
                  Hashrate::format(speed[2] * scale,                 num + 16 * 2, sizeof(num) / 4), h,
                  Hashrate::format(maxHashrate[algorithm] * scale,   num + 16 * 3, sizeof(num) / 4), h
                  );
+
+#       ifdef XMRIG_FEATURE_BENCHMARK
+        for (auto backend : backends) {
+            backend->printBenchProgress();
+        }
+#       endif
     }
 
 
@@ -285,9 +341,9 @@ public:
     Algorithm algorithm;
     Algorithms algorithms;
     bool active         = false;
+    bool battery_power  = false;
     bool enabled        = true;
     bool reset          = true;
-    bool battery_power  = false;
     Controller *controller;
     Job job;
     mutable std::map<Algorithm::Id, double> maxHashrate;
@@ -310,6 +366,10 @@ xmrig::Miner::Miner(Controller *controller)
         Platform::setProcessPriority(priority);
         Platform::setThreadPriority(std::min(priority + 1, 5));
     }
+
+#   ifdef XMRIG_FEATURE_PROFILING
+    ProfileScopeData::Init();
+#   endif
 
 #   ifdef XMRIG_ALGO_RANDOMX
     Rx::init(this);
@@ -493,6 +553,8 @@ void xmrig::Miner::setJob(const Job &job, bool donate)
 
     mutex.unlock();
 
+    d_ptr->active = true;
+
     if (ready) {
         d_ptr->handleJobChange();
     }
@@ -530,8 +592,12 @@ void xmrig::Miner::onTimer(const Timer *)
     double maxHashrate          = 0.0;
     const auto healthPrintTime  = d_ptr->controller->config()->healthPrintTime();
 
+    bool stopMiner = false;
+
     for (IBackend *backend : d_ptr->backends) {
-        backend->tick(d_ptr->ticks);
+        if (!backend->tick(d_ptr->ticks)) {
+            stopMiner = true;
+        }
 
         if (healthPrintTime && d_ptr->ticks && (d_ptr->ticks % (healthPrintTime * 2)) == 0 && backend->isEnabled()) {
             backend->printHealth();
@@ -563,6 +629,10 @@ void xmrig::Miner::onTimer(const Timer *)
             d_ptr->battery_power = false;
             setEnabled(true);
         }
+    }
+
+    if (stopMiner) {
+        stop();
     }
 }
 
