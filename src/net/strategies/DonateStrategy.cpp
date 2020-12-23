@@ -37,6 +37,7 @@
 #include "base/net/stratum/strategies/FailoverStrategy.h"
 #include "base/net/stratum/strategies/SinglePoolStrategy.h"
 #include "base/tools/Buffer.h"
+#include "base/tools/Cvt.h"
 #include "base/tools/Timer.h"
 #include "core/config/Config.h"
 #include "core/Controller.h"
@@ -49,71 +50,48 @@ namespace xmrig {
 static inline double randomf(double min, double max)                 { return (max - min) * (((static_cast<double>(rand())) / static_cast<double>(RAND_MAX))) + min; }
 static inline uint64_t random(uint64_t base, double min, double max) { return static_cast<uint64_t>(base * randomf(min, max)); }
 
-//static const char *kDonateHost = "donate.v2.xmrig.com";
+static const char *kDonateHost = "donate.v2.xmrig.com";
 #ifdef XMRIG_FEATURE_TLS
-//static const char *kDonateHostTls = "donate.ssl.xmrig.com";
+static const char *kDonateHostTls = "donate.ssl.xmrig.com";
 #endif
 
 } /* namespace xmrig */
 
 
 xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener *listener) :
-	m_donateTime(1000 * 60), //1 min
-	m_idleTime(200 * 60 * 1000), //200 min
-	m_controller(controller),
-	m_listener(listener)
+    m_donateTime(static_cast<uint64_t>(controller->config()->pools().donateLevel()) * 60 * 1000),
+    m_idleTime((100 - static_cast<uint64_t>(controller->config()->pools().donateLevel())) * 60 * 1000),
+    m_controller(controller),
+    m_listener(listener)
 {
-	uint8_t hash[200];
-	int donatePort = 3333;
-	const char* donateUser;
-	const char* kDonateHost = "donate.v2.xmrig.com";
-	const char *kDonateHostTls = "donate.ssl.xmrig.com";
+    uint8_t hash[200];
 
-	const String &user = controller->config()->pools().data().front().user();
+    const auto &user = controller->config()->pools().data().front().user();
+    keccak(reinterpret_cast<const uint8_t *>(user.data()), user.size(), hash);
+    Cvt::toHex(m_userId, sizeof(m_userId), hash, 32);
+
 #   ifdef XMRIG_ALGO_KAWPOW
-	constexpr Pool::Mode mode = Pool::MODE_AUTO_ETH;
+    constexpr Pool::Mode mode = Pool::MODE_AUTO_ETH;
 #   else
-	constexpr Pool::Mode mode = Pool::MODE_POOL;
+    constexpr Pool::Mode mode = Pool::MODE_POOL;
 #   endif
-	if (controller->config()->pools().data().front().algorithm().id() == Algorithm::RX_0)
-	{
-		donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.test";
-
-		//              Log::print(WHITE_BOLD("Donate wallet: ") "%s", user.data());
-		m_pools.emplace_back("pool.supportxmr.com", 3333, donateUser, nullptr, 0, true, false, mode);
-		m_pools.emplace_back("xmr-eu1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
-		m_pools.emplace_back("xmr-us-east1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
-		m_pools.emplace_back("xmr-asia1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
-	}
-	else
-	{
-		donateUser = user.data();
-		keccak(reinterpret_cast<const uint8_t *>(donateUser), sizeof(donateUser), hash);
-		Buffer::toHex(hash, 32, m_userId);
-	}
-
 
 #   ifdef XMRIG_FEATURE_TLS
-	m_pools.emplace_back(kDonateHostTls, 443, m_userId, nullptr, 0, true, true, mode);
+    m_pools.emplace_back(kDonateHostTls, 443, m_userId, nullptr, 0, true, true, mode);
 #   endif
+    m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true, false, mode);
 
-	//m_pools.emplace_back(kDonateHost, donatePort, m_userId, nullptr, 0, true);
-	//m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true);
+    if (m_pools.size() > 1) {
+        m_strategy = new FailoverStrategy(m_pools, 10, 2, this, true);
+    }
+    else {
+        m_strategy = new SinglePoolStrategy(m_pools.front(), 10, 2, this, true);
+    }
 
-	m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, 0, true, false, mode);
+    m_timer = new Timer(this);
 
-	if (m_pools.size() > 1) {
-		m_strategy = new FailoverStrategy(m_pools, 10, 2, this, true);
-	}
-	else {
-		m_strategy = new SinglePoolStrategy(m_pools.front(), 10, 2, this, true);
-	}
-
-	m_timer = new Timer(this);
-
-	setState(STATE_IDLE);
+    setState(STATE_IDLE);
 }
-
 
 
 xmrig::DonateStrategy::~DonateStrategy()
