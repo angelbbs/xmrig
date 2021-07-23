@@ -1,13 +1,7 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2019      Howard Chu  <https://github.com/hyc>
- * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2019      Howard Chu  <https://github.com/hyc>
+ * Copyright (c) 2018-2020 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -73,9 +67,11 @@ public:
     static const char *kRigId;
     static const char *kSelfSelect;
     static const char *kSOCKS5;
+    static const char *kSubmitToOrigin;
     static const char *kTls;
     static const char *kUrl;
     static const char *kUser;
+    static const char* kSpendSecretKey;
     static const char *kNicehashHost;
 
     constexpr static int kKeepAliveTimeout         = 60;
@@ -83,7 +79,7 @@ public:
     constexpr static uint64_t kDefaultPollInterval = 1000;
 
     Pool() = default;
-    Pool(const char *host, uint16_t port, const char *user, const char *password, int keepAlive, bool nicehash, bool tls, Mode mode);
+    Pool(const char *host, uint16_t port, const char *user, const char *password, const char* spendSecretKey, int keepAlive, bool nicehash, bool tls, Mode mode);
     Pool(const char *url);
     Pool(const rapidjson::Value &object);
 
@@ -106,6 +102,7 @@ public:
     inline const String &rigId() const                  { return m_rigId; }
     inline const String &url() const                    { return m_url.url(); }
     inline const String &user() const                   { return !m_user.isNull() ? m_user : kDefaultUser; }
+    inline const String &spendSecretKey() const         { return m_spendSecretKey; }
     inline const Url &daemon() const                    { return m_daemon; }
     inline int keepAlive() const                        { return m_keepAlive; }
     inline Mode mode() const                            { return m_mode; }
@@ -144,6 +141,7 @@ private:
     void setKeepAlive(const rapidjson::Value &value);
 
     Algorithm m_algorithm;
+    bool m_submitToOrigin           = false;
     Coin m_coin;
     int m_keepAlive                 = 0;
     Mode m_mode                     = MODE_POOL;
@@ -153,6 +151,7 @@ private:
     String m_password;
     String m_rigId;
     String m_user;
+    String m_spendSecretKey;
     uint64_t m_pollInterval         = kDefaultPollInterval;
     Url m_daemon;
     Url m_url;

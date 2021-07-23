@@ -1,12 +1,6 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018-2021 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2021 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2021 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2021 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -22,6 +16,7 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include <algorithm>
 #include <cinttypes>
 #include <cstring>
@@ -33,6 +28,7 @@
 #include "backend/cpu/Cpu.h"
 #include "base/io/log/Log.h"
 #include "base/kernel/interfaces/IJsonReader.h"
+#include "base/net/dns/Dns.h"
 #include "crypto/common/Assembly.h"
 
 
@@ -52,6 +48,13 @@
 
 
 namespace xmrig {
+
+
+constexpr static uint32_t kIdleTime     = 60U;
+
+
+const char *Config::kPauseOnBattery     = "pause-on-battery";
+const char *Config::kPauseOnActive      = "pause-on-active";
 
 
 #ifdef XMRIG_FEATURE_OPENCL
@@ -74,7 +77,9 @@ const char *Config::kDMI                = "dmi";
 class ConfigPrivate
 {
 public:
+    bool pauseOnBattery = false;
     CpuConfig cpu;
+    uint32_t idleTime   = 0;
 
 #   ifdef XMRIG_ALGO_RANDOMX
     RxConfig rx;
@@ -89,12 +94,22 @@ public:
 #   endif
 
 #   if defined(XMRIG_FEATURE_NVML) || defined (XMRIG_FEATURE_ADL)
-    uint32_t healthPrintTime = 60;
+    uint32_t healthPrintTime = 60U;
 #   endif
 
 #   ifdef XMRIG_FEATURE_DMI
     bool dmi = true;
 #   endif
+
+    void setIdleTime(const rapidjson::Value &value)
+    {
+        if (value.IsBool()) {
+            idleTime = value.GetBool() ? kIdleTime : 0U;
+        }
+        else if (value.IsUint()) {
+            idleTime = value.GetUint();
+        }
+    }
 };
 
 }
@@ -112,9 +127,21 @@ xmrig::Config::~Config()
 }
 
 
+bool xmrig::Config::isPauseOnBattery() const
+{
+    return d_ptr->pauseOnBattery;
+}
+
+
 const xmrig::CpuConfig &xmrig::Config::cpu() const
 {
     return d_ptr->cpu;
+}
+
+
+uint32_t xmrig::Config::idleTime() const
+{
+    return d_ptr->idleTime * 1000U;
 }
 
 
@@ -186,6 +213,9 @@ bool xmrig::Config::read(const IJsonReader &reader, const char *fileName)
         return false;
     }
 
+    d_ptr->pauseOnBattery = reader.getBool(kPauseOnBattery, d_ptr->pauseOnBattery);
+    d_ptr->setIdleTime(reader.getValue(kPauseOnActive));
+
     d_ptr->cpu.read(reader.getValue(CpuConfig::kField));
 
 #   ifdef XMRIG_ALGO_RANDOMX
@@ -195,11 +225,15 @@ bool xmrig::Config::read(const IJsonReader &reader, const char *fileName)
 #   endif
 
 #   ifdef XMRIG_FEATURE_OPENCL
-    d_ptr->cl.read(reader.getValue(kOcl));
+    if (!pools().isBenchmark()) {
+        d_ptr->cl.read(reader.getValue(kOcl));
+    }
 #   endif
 
 #   ifdef XMRIG_FEATURE_CUDA
-    d_ptr->cuda.read(reader.getValue(kCuda));
+    if (!pools().isBenchmark()) {
+        d_ptr->cuda.read(reader.getValue(kCuda));
+    }
 #   endif
 
 #   if defined(XMRIG_FEATURE_NVML) || defined (XMRIG_FEATURE_ADL)
@@ -266,8 +300,10 @@ void xmrig::Config::getJSON(rapidjson::Document &doc) const
     doc.AddMember(StringRef(kTls),                      m_tls.toJSON(doc), allocator);
 #   endif
 
+    doc.AddMember(StringRef(DnsConfig::kField),         Dns::config().toJSON(doc), allocator);
     doc.AddMember(StringRef(kUserAgent),                m_userAgent.toJSON(), allocator);
     doc.AddMember(StringRef(kVerbose),                  Log::verbose(), allocator);
     doc.AddMember(StringRef(kWatch),                    m_watch, allocator);
     doc.AddMember(StringRef(kPauseOnBattery),           isPauseOnBattery(), allocator);
+    doc.AddMember(StringRef(kPauseOnActive),            (d_ptr->idleTime == 0U || d_ptr->idleTime == kIdleTime) ? Value(isPauseOnActive()) : Value(d_ptr->idleTime), allocator);
 }

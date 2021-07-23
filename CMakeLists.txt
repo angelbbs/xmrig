@@ -5,6 +5,7 @@ option(WITH_HWLOC           "Enable hwloc support" ON)
 option(WITH_CN_LITE         "Enable CryptoNight-Lite algorithms family" ON)
 option(WITH_CN_HEAVY        "Enable CryptoNight-Heavy algorithms family" ON)
 option(WITH_CN_PICO         "Enable CryptoNight-Pico algorithm" ON)
+option(WITH_CN_FEMTO        "Enable CryptoNight-UPX2 algorithm" ON)
 option(WITH_RANDOMX         "Enable RandomX algorithms family" ON)
 option(WITH_ARGON2          "Enable Argon2 algorithms family" ON)
 option(WITH_ASTROBWT        "Enable AstroBWT algorithms family" ON)
@@ -147,8 +148,10 @@ elseif (XMRIG_OS_APPLE)
         src/App_unix.cpp
         src/crypto/common/VirtualMemory_unix.cpp
         )
+
     find_library(IOKIT_LIBRARY IOKit)
-    set(EXTRA_LIBS ${IOKIT_LIBRARY})
+    find_library(CORESERVICES_LIBRARY CoreServices)
+    set(EXTRA_LIBS ${IOKIT_LIBRARY} ${CORESERVICES_LIBRARY})
 else()
     list(APPEND SOURCES_OS
         src/App_unix.cpp
@@ -192,6 +195,10 @@ endif()
 
 if (WITH_CN_PICO)
     add_definitions(/DXMRIG_ALGO_CN_PICO)
+endif()
+
+if (WITH_CN_FEMTO)
+    add_definitions(/DXMRIG_ALGO_CN_FEMTO)
 endif()
 
 if (WITH_EMBEDDED_CONFIG)

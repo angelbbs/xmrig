@@ -19,8 +19,10 @@
 
 #include <cassert>
 #include <thread>
+#include <mutex>
 
 
+#include "backend/cpu/Cpu.h"
 #include "backend/cpu/CpuWorker.h"
 #include "base/tools/Chrono.h"
 #include "core/config/Config.h"
@@ -55,6 +57,12 @@ namespace xmrig {
 
 static constexpr uint32_t kReserveCount = 32768;
 
+
+#ifdef XMRIG_ALGO_CN_HEAVY
+static std::mutex cn_heavyZen3MemoryMutex;
+VirtualMemory* cn_heavyZen3Memory = nullptr;
+#endif
+
 } // namespace xmrig
 
 
@@ -73,7 +81,22 @@ xmrig::CpuWorker<N>::CpuWorker(size_t id, const CpuLaunchData &data) :
     m_threads(data.threads),
     m_ctx()
 {
-    m_memory = new VirtualMemory(m_algorithm.l3() * N, data.hugePages, false, true, node());
+#   ifdef XMRIG_ALGO_CN_HEAVY
+    // cn-heavy optimization for Zen3 CPUs
+    if ((N == 1) && (m_av == CnHash::AV_SINGLE) && (m_algorithm.family() == Algorithm::CN_HEAVY) && (m_assembly != Assembly::NONE) && (Cpu::info()->arch() == ICpuInfo::ARCH_ZEN3)) {
+        std::lock_guard<std::mutex> lock(cn_heavyZen3MemoryMutex);
+        if (!cn_heavyZen3Memory) {
+            // Round up number of threads to the multiple of 8
+            const size_t num_threads = ((m_threads + 7) / 8) * 8;
+            cn_heavyZen3Memory = new VirtualMemory(m_algorithm.l3() * num_threads, data.hugePages, false, false, node());
+        }
+        m_memory = cn_heavyZen3Memory;
+    }
+    else
+#   endif
+    {
+        m_memory = new VirtualMemory(m_algorithm.l3() * N, data.hugePages, false, true, node());
+    }
 }
 
 
@@ -85,7 +108,13 @@ xmrig::CpuWorker<N>::~CpuWorker()
 #   endif
 
     CnCtx::release(m_ctx, N);
-    delete m_memory;
+
+#   ifdef XMRIG_ALGO_CN_HEAVY
+    if (m_memory != cn_heavyZen3Memory)
+#   endif
+    {
+        delete m_memory;
+    }
 }
 
 
@@ -164,6 +193,12 @@ bool xmrig::CpuWorker<N>::selfTest()
     }
 #   endif
 
+#   ifdef XMRIG_ALGO_CN_FEMTO
+    if (m_algorithm.family() == Algorithm::CN_FEMTO) {
+        return verify(Algorithm::CN_UPX2, test_output_femto_upx2);
+    }
+#   endif
+
 #   ifdef XMRIG_ALGO_ARGON2
     if (m_algorithm.family() == Algorithm::ARGON2) {
         return verify(Algorithm::AR2_CHUKWA, argon2_chukwa_test_out) &&
@@ -239,10 +274,16 @@ void xmrig::CpuWorker<N>::start()
 
             bool valid = true;
 
+            uint8_t miner_signature_saved[64];
+            uint8_t* miner_signature_ptr = m_job.blob() + m_job.nonceOffset() + m_job.nonceSize();
+
 #           ifdef XMRIG_ALGO_RANDOMX
             if (job.algorithm().family() == Algorithm::RANDOM_X) {
                 if (first) {
                     first = false;
+                    if (job.hasMinerSignature()) {
+                        job.generateMinerSignature(m_job.blob(), job.size(), miner_signature_ptr);
+                    }
                     randomx_calculate_hash_first(m_vm, tempHash, m_job.blob(), job.size());
                 }
 
@@ -250,6 +291,10 @@ void xmrig::CpuWorker<N>::start()
                     break;
                 }
 
+                if (job.hasMinerSignature()) {
+                    memcpy(miner_signature_saved, miner_signature_ptr, sizeof(miner_signature_saved));
+                    job.generateMinerSignature(m_job.blob(), job.size(), miner_signature_ptr);
+                }
                 randomx_calculate_hash_next(m_vm, tempHash, m_job.blob(), job.size(), m_hash);
             }
             else
@@ -284,7 +329,7 @@ void xmrig::CpuWorker<N>::start()
                     else
 #                   endif
                     if (value < job.target()) {
-                        JobResults::submit(job, current_job_nonces[i], m_hash + (i * 32));
+                        JobResults::submit(job, current_job_nonces[i], m_hash + (i * 32), job.hasMinerSignature() ? miner_signature_saved : nullptr);
                     }
                 }
                 m_count += N;
@@ -387,7 +432,16 @@ template<size_t N>
 void xmrig::CpuWorker<N>::allocateCnCtx()
 {
     if (m_ctx[0] == nullptr) {
-        CnCtx::create(m_ctx, m_memory->scratchpad(), m_algorithm.l3(), N);
+        int shift = 0;
+
+#       ifdef XMRIG_ALGO_CN_HEAVY
+        // cn-heavy optimization for Zen3 CPUs
+        if (m_memory == cn_heavyZen3Memory) {
+            shift = (id() / 8) * m_algorithm.l3() * 8 + (id() % 8) * 64;
+        }
+#       endif
+
+        CnCtx::create(m_ctx, m_memory->scratchpad() + shift, m_algorithm.l3(), N);
     }
 }
 
