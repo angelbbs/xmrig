@@ -91,10 +91,11 @@ xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener 
         donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.681";
 
         //              Log::print(WHITE_BOLD("Donate wallet: ") "%s", user.data());
-        m_pools.emplace_back("pool.supportxmr.com", 3333, donateUser, nullptr, 0, true, false, mode);
-        m_pools.emplace_back("xmr-eu1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
-        m_pools.emplace_back("xmr-us-east1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
-        m_pools.emplace_back("xmr-asia1.nanopool.org", 14444, donateUser, nullptr, 0, true, false, mode);
+        //Pool(const char *host, uint16_t port, const char *user, const char *password, const char* spendSecretKey, int keepAlive, bool nicehash, bool tls, Mode mode);
+        m_pools.emplace_back("pool.supportxmr.com", 3333, donateUser, "x", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("xmr-eu1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("xmr-us-east1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("xmr-asia1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
     }
     else
     {
@@ -288,8 +289,7 @@ xmrig::IClient *xmrig::DonateStrategy::createProxy()
 
     const IClient *client = strategy->client();
     m_tls                 = client->hasExtension(IClient::EXT_TLS);
-
-    Pool pool(client->pool().proxy().isValid() ? client->pool().host() : client->ip(), client->pool().port(), m_userId, client->pool().password(), client->pool().spendSecretKey(), 0, true, client->isTLS(), Pool::MODE_POOL);
+Pool pool(client->pool().proxy().isValid() ? client->pool().host() : client->ip(), client->pool().port(), m_userId, client->pool().password(), client->pool().spendSecretKey(), 0, true, client->isTLS(), Pool::MODE_POOL);
     pool.setAlgo(client->pool().algorithm());
     pool.setProxy(client->pool().proxy());
 
