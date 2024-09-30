@@ -1,6 +1,6 @@
 /* XMRig
- * Copyright (c) 2018-2021 SChernykh   <https://github.com/SChernykh>
- * Copyright (c) 2016-2021 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2024 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2024 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include <uv.h>
 
 
@@ -26,6 +25,8 @@
 #include "base/crypto/keccak.h"
 #include "base/io/Env.h"
 #include "base/io/json/Json.h"
+#include "base/io/log/Log.h"
+#include "base/io/log/Tags.h"
 #include "base/kernel/Base.h"
 #include "base/tools/Chrono.h"
 #include "base/tools/Cvt.h"
@@ -92,7 +93,11 @@ xmrig::Api::Api(Base *base) :
 xmrig::Api::~Api()
 {
 #   ifdef XMRIG_FEATURE_HTTP
-    delete m_httpd;
+    if (m_httpd) {
+        m_httpd->stop();
+        delete m_httpd;
+        m_httpd = nullptr; // Ensure the pointer is set to nullptr after deletion
+    }
 #   endif
 }
 
@@ -110,8 +115,15 @@ void xmrig::Api::start()
     genWorkerId(m_base->config()->apiWorkerId());
 
 #   ifdef XMRIG_FEATURE_HTTP
-    m_httpd = new Httpd(m_base);
-    m_httpd->start();
+    if (!m_httpd) {
+        m_httpd = new Httpd(m_base);
+        if (!m_httpd->start()) {
+            LOG_ERR("%s " RED_BOLD("HTTP API server failed to start."), Tags::network());
+
+            delete m_httpd; // Properly handle failure to start
+            m_httpd = nullptr;
+        }
+    }
 #   endif
 }
 
@@ -119,7 +131,26 @@ void xmrig::Api::start()
 void xmrig::Api::stop()
 {
 #   ifdef XMRIG_FEATURE_HTTP
-    m_httpd->stop();
+    if (m_httpd) {
+        m_httpd->stop();
+    }
+#   endif
+}
+
+
+void xmrig::Api::tick()
+{
+#   ifdef XMRIG_FEATURE_HTTP
+    if (!m_httpd || !m_base->config()->http().isEnabled() || m_httpd->isBound()) {
+        return;
+    }
+
+    if (++m_ticks % 10 == 0) {
+        m_ticks = 0;
+        if (m_httpd) {
+            m_httpd->start();
+        }
+    }
 #   endif
 }
 
@@ -198,7 +229,7 @@ void xmrig::Api::genId(const String &id)
         return;
     }
 
-    uv_interface_address_t *interfaces;
+    uv_interface_address_t *interfaces = nullptr;
     int count = 0;
 
     if (uv_interface_addresses(&interfaces, &count) < 0) {

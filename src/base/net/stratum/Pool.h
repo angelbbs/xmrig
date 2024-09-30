@@ -1,7 +1,7 @@
 /* XMRig
  * Copyright (c) 2019      Howard Chu  <https://github.com/hyc>
- * Copyright (c) 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright (c) 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2024 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2024 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -59,6 +59,7 @@ public:
     static const char *kCoin;
     static const char *kDaemon;
     static const char *kDaemonPollInterval;
+    static const char *kDaemonJobTimeout;
     static const char *kEnabled;
     static const char *kFingerprint;
     static const char *kKeepalive;
@@ -69,14 +70,17 @@ public:
     static const char *kSOCKS5;
     static const char *kSubmitToOrigin;
     static const char *kTls;
+    static const char *kSni;
     static const char *kUrl;
     static const char *kUser;
-    static const char* kSpendSecretKey;
+    static const char *kSpendSecretKey;
+    static const char *kDaemonZMQPort;
     static const char *kNicehashHost;
 
     constexpr static int kKeepAliveTimeout         = 60;
     constexpr static uint16_t kDefaultPort         = 3333;
     constexpr static uint64_t kDefaultPollInterval = 1000;
+    constexpr static uint64_t kDefaultJobTimeout   = 15000;
 
     Pool() = default;
     Pool(const char *host, uint16_t port, const char *user, const char *password, const char* spendSecretKey, int keepAlive, bool nicehash, bool tls, Mode mode);
@@ -92,6 +96,7 @@ public:
 
     inline bool isNicehash() const                      { return m_flags.test(FLAG_NICEHASH); }
     inline bool isTLS() const                           { return m_flags.test(FLAG_TLS) || m_url.isTLS(); }
+    inline bool isSNI() const                           { return m_flags.test(FLAG_SNI); }
     inline bool isValid() const                         { return m_url.isValid(); }
     inline const Algorithm &algorithm() const           { return m_algorithm; }
     inline const Coin &coin() const                     { return m_coin; }
@@ -107,8 +112,11 @@ public:
     inline int keepAlive() const                        { return m_keepAlive; }
     inline Mode mode() const                            { return m_mode; }
     inline uint16_t port() const                        { return m_url.port(); }
+    inline int zmq_port() const                         { return m_zmqPort; }
     inline uint64_t pollInterval() const                { return m_pollInterval; }
+    inline uint64_t jobTimeout() const                  { return m_jobTimeout; }
     inline void setAlgo(const Algorithm &algorithm)     { m_algorithm = algorithm; }
+    inline void setUrl(const char *url)                 { m_url = Url(url); }
     inline void setPassword(const String &password)     { m_password = password; }
     inline void setProxy(const ProxyUrl &proxy)         { m_proxy = proxy; }
     inline void setRigId(const String &rigId)           { m_rigId = rigId; }
@@ -132,6 +140,7 @@ private:
         FLAG_ENABLED,
         FLAG_NICEHASH,
         FLAG_TLS,
+        FLAG_SNI,
         FLAG_MAX
     };
 
@@ -153,8 +162,10 @@ private:
     String m_user;
     String m_spendSecretKey;
     uint64_t m_pollInterval         = kDefaultPollInterval;
+    uint64_t m_jobTimeout           = kDefaultJobTimeout;
     Url m_daemon;
     Url m_url;
+    int m_zmqPort                   = -1;
 
 #   ifdef XMRIG_FEATURE_BENCHMARK
     std::shared_ptr<BenchConfig> m_benchmark;

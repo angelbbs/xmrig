@@ -1,6 +1,6 @@
 /* XMRig
- * Copyright (c) 2018-2021 SChernykh   <https://github.com/SChernykh>
- * Copyright (c) 2016-2021 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2023 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2023 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include <algorithm>
 #include <winsock2.h>
 #include <windows.h>
@@ -30,7 +29,7 @@
 
 static inline OSVERSIONINFOEX winOsVersion()
 {
-    typedef NTSTATUS (NTAPI *RtlGetVersionFunction)(LPOSVERSIONINFO);
+    typedef NTSTATUS (NTAPI *RtlGetVersionFunction)(LPOSVERSIONINFO); // NOLINT(modernize-use-using)
     OSVERSIONINFOEX result = { sizeof(OSVERSIONINFOEX), 0, 0, 0, 0, {'\0'}, 0, 0, 0, 0, 0};
 
     HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
@@ -61,12 +60,18 @@ char *xmrig::Platform::createUserAgent()
 #   endif
 
 #   ifdef __GNUC__
-    length += snprintf(buf + length, max - length, " gcc/%d.%d.%d", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
+    snprintf(buf + length, max - length, " gcc/%d.%d.%d", __GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__);
 #   elif _MSC_VER
-    length += snprintf(buf + length, max - length, " msvc/%d", MSVC_VERSION);
+    snprintf(buf + length, max - length, " msvc/%d", MSVC_VERSION);
 #   endif
 
     return buf;
+}
+
+
+bool xmrig::Platform::hasKeepalive()
+{
+    return winOsVersion().dwMajorVersion >= 6;
 }
 
 

@@ -30,6 +30,12 @@
 #endif
 
 
+#include "crypto/cn/CryptoNight_monero.h"
+#ifdef XMRIG_VAES
+#   include "crypto/cn/CryptoNight_x86_vaes.h"
+#endif
+
+
 #include "backend/cpu/platform/BasicCpuInfo.h"
 #include "3rdparty/rapidjson/document.h"
 #include "crypto/common/Assembly.h"
@@ -52,13 +58,13 @@
 namespace xmrig {
 
 
-constexpr size_t kCpuFlagsSize                                  = 14;
-static const std::array<const char *, kCpuFlagsSize> flagNames  = { "aes", "avx", "avx2", "avx512f", "bmi2", "osxsave", "pdpe1gb", "sse2", "ssse3", "sse4.1", "xop", "popcnt", "cat_l3", "vm" };
+constexpr size_t kCpuFlagsSize                                  = 15;
+static const std::array<const char *, kCpuFlagsSize> flagNames  = { "aes", "vaes", "avx", "avx2", "avx512f", "bmi2", "osxsave", "pdpe1gb", "sse2", "ssse3", "sse4.1", "xop", "popcnt", "cat_l3", "vm" };
 static_assert(kCpuFlagsSize == ICpuInfo::FLAG_MAX, "kCpuFlagsSize and FLAG_MAX mismatch");
 
 
 #ifdef XMRIG_FEATURE_MSR
-constexpr size_t kMsrArraySize                                  = 5;
+constexpr size_t kMsrArraySize                                  = 7;
 static const std::array<const char *, kMsrArraySize> msrNames   = { MSR_NAMES_LIST };
 static_assert(kMsrArraySize == ICpuInfo::MSR_MOD_MAX, "kMsrArraySize and MSR_MOD_MAX mismatch");
 #endif
@@ -140,6 +146,7 @@ static inline bool has_osxsave()    { return has_feature(PROCESSOR_INFO,        
 static inline bool has_aes_ni()     { return has_feature(PROCESSOR_INFO,        ECX_Reg, 1 << 25); }
 static inline bool has_avx()        { return has_feature(PROCESSOR_INFO,        ECX_Reg, 1 << 28) && has_osxsave() && has_xcr_avx(); }
 static inline bool has_avx2()       { return has_feature(EXTENDED_FEATURES,     EBX_Reg, 1 << 5) && has_osxsave() && has_xcr_avx(); }
+static inline bool has_vaes()       { return has_feature(EXTENDED_FEATURES,     ECX_Reg, 1 << 9) && has_osxsave() && has_xcr_avx(); }
 static inline bool has_avx512f()    { return has_feature(EXTENDED_FEATURES,     EBX_Reg, 1 << 16) && has_osxsave() && has_xcr_avx512(); }
 static inline bool has_bmi2()       { return has_feature(EXTENDED_FEATURES,     EBX_Reg, 1 << 8); }
 static inline bool has_pdpe1gb()    { return has_feature(PROCESSOR_EXT_INFO,    EDX_Reg, 1 << 26); }
@@ -178,6 +185,7 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
     m_flags.set(FLAG_AES,     has_aes_ni());
     m_flags.set(FLAG_AVX,     has_avx());
     m_flags.set(FLAG_AVX2,    has_avx2());
+    m_flags.set(FLAG_VAES,    has_vaes());
     m_flags.set(FLAG_AVX512F, has_avx512f());
     m_flags.set(FLAG_BMI2,    has_bmi2());
     m_flags.set(FLAG_OSXSAVE, has_osxsave());
@@ -196,7 +204,7 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
     }
 
 #   ifdef XMRIG_FEATURE_ASM
-    if (hasAES()) {
+    if (m_flags.test(FLAG_AES)) {
         char vendor[13] = { 0 };
         int32_t data[4] = { 0 };
 
@@ -242,8 +250,19 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
                     break;
 
                 case 0x19:
-                    m_arch = ARCH_ZEN3;
-                    m_msrMod = MSR_MOD_RYZEN_19H;
+                    if (m_model == 0x61) {
+                        m_arch = ARCH_ZEN4;
+                        m_msrMod = MSR_MOD_RYZEN_19H_ZEN4;
+                    }
+                    else {
+                        m_arch = ARCH_ZEN3;
+                        m_msrMod = MSR_MOD_RYZEN_19H;
+                    }
+                    break;
+
+                case 0x1a:
+                    m_arch = ARCH_ZEN5;
+                    m_msrMod = MSR_MOD_RYZEN_1AH_ZEN5;
                     break;
 
                 default:
@@ -282,7 +301,7 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
                 // Affected CPU models and stepping numbers are taken from https://www.intel.com/content/dam/support/us/en/documents/processors/mitigations-jump-conditional-code-erratum.pdf
                 m_jccErratum =
                     ((model == 0x4E) && (stepping == 0x3)) ||
-                    ((model == 0x55) && (stepping == 0x4)) ||
+                    ((model == 0x55) && ((stepping == 0x4) || (stepping == 0x7))) ||
                     ((model == 0x5E) && (stepping == 0x3)) ||
                     ((model == 0x8E) && (stepping >= 0x9) && (stepping <= 0xC)) ||
                     ((model == 0x9E) && (stepping >= 0x9) && (stepping <= 0xD)) ||
@@ -292,6 +311,9 @@ xmrig::BasicCpuInfo::BasicCpuInfo() :
         }
     }
 #   endif
+
+    cn_sse41_enabled = has(FLAG_SSE41);
+    cn_vaes_enabled = has(FLAG_VAES);
 }
 
 
@@ -309,7 +331,7 @@ xmrig::CpuThreads xmrig::BasicCpuInfo::threads(const Algorithm &algorithm, uint3
         return 1;
     }
 
-    Algorithm::Family f = algorithm.family();
+    const auto f = algorithm.family();
 
 #   ifdef XMRIG_ALGO_CN_LITE
     if (f == Algorithm::CN_LITE) {
@@ -351,13 +373,9 @@ xmrig::CpuThreads xmrig::BasicCpuInfo::threads(const Algorithm &algorithm, uint3
     }
 #   endif
 
-#   ifdef XMRIG_ALGO_ASTROBWT
-    if (f == Algorithm::ASTROBWT) {
-        CpuThreads threads;
-        for (size_t i = 0; i < count; ++i) {
-            threads.add(i, 0);
-        }
-        return threads;
+#   ifdef XMRIG_ALGO_GHOSTRIDER
+    if (f == Algorithm::GHOSTRIDER) {
+        return CpuThreads(std::max<size_t>(count / 2, 1), 8);
     }
 #   endif
 

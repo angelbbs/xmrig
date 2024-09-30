@@ -1,12 +1,6 @@
 /* XMRig
- * Copyright 2010      Jeff Garzik <jgarzik@pobox.com>
- * Copyright 2012-2014 pooler      <pooler@litecoinpool.org>
- * Copyright 2014      Lucas Jones <https://github.com/lucasjones>
- * Copyright 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
- * Copyright 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright 2017-2018 XMR-Stak    <https://github.com/fireice-uk>, <https://github.com/psychocrypt>
- * Copyright 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2023 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2023 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -21,7 +15,6 @@
  *   You should have received a copy of the GNU General Public License
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 
 #include <algorithm>
 #include <cassert>
@@ -55,7 +48,7 @@ static inline uint64_t random(uint64_t base, double min, double max) { return st
 //static const char *kDonateHostTls = "donate.ssl.xmrig.com";
 #endif
 
-} /* namespace xmrig */
+} // namespace xmrig
 
 
 xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener *listener) :
@@ -80,7 +73,7 @@ xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener 
     keccak(reinterpret_cast<const uint8_t *>(user.data()), user.size(), hash);
     Cvt::toHex(m_userId, sizeof(m_userId), hash, 32);
 
-#   ifdef XMRIG_ALGO_KAWPOW
+#   if defined XMRIG_ALGO_KAWPOW || defined XMRIG_ALGO_GHOSTRIDER
     constexpr Pool::Mode mode = Pool::MODE_AUTO_ETH;
 #   else
     constexpr Pool::Mode mode = Pool::MODE_POOL;
@@ -133,6 +126,17 @@ xmrig::DonateStrategy::~DonateStrategy()
     if (m_proxy) {
         m_proxy->deleteLater();
     }
+}
+
+
+void xmrig::DonateStrategy::update(IClient *client, const Job &job)
+{
+    setAlgo(job.algorithm());
+    setProxy(client->pool().proxy());
+
+    m_diff   = job.diff();
+    m_height = job.height();
+    m_seed   = job.seed();
 }
 
 
@@ -237,13 +241,13 @@ void xmrig::DonateStrategy::onLogin(IClient *, rapidjson::Document &doc, rapidjs
     params.AddMember("url", m_pools[0].url().toJSON(), allocator);
 #   endif
 
-    setAlgorithms(doc, params);
+    setParams(doc, params);
 }
 
 
 void xmrig::DonateStrategy::onLogin(IStrategy *, IClient *, rapidjson::Document &doc, rapidjson::Value &params)
 {
-    setAlgorithms(doc, params);
+    setParams(doc, params);
 }
 
 
@@ -307,12 +311,20 @@ void xmrig::DonateStrategy::idle(double min, double max)
 }
 
 
-void xmrig::DonateStrategy::setAlgorithms(rapidjson::Document &doc, rapidjson::Value &params)
+void xmrig::DonateStrategy::setJob(IClient *client, const Job &job, const rapidjson::Value &params)
+{
+    if (isActive()) {
+        m_listener->onJob(this, client, job, params);
+    }
+}
+
+
+void xmrig::DonateStrategy::setParams(rapidjson::Document &doc, rapidjson::Value &params)
 {
     using namespace rapidjson;
     auto &allocator = doc.GetAllocator();
+    auto algorithms = m_controller->miner()->algorithms();
 
-    Algorithms algorithms = m_controller->miner()->algorithms();
     const size_t index = static_cast<size_t>(std::distance(algorithms.begin(), std::find(algorithms.begin(), algorithms.end(), m_algorithm)));
     if (index > 0 && index < algorithms.size()) {
         std::swap(algorithms[0], algorithms[index]);
@@ -321,17 +333,15 @@ void xmrig::DonateStrategy::setAlgorithms(rapidjson::Document &doc, rapidjson::V
     Value algo(kArrayType);
 
     for (const auto &a : algorithms) {
-        algo.PushBack(StringRef(a.shortName()), allocator);
+        algo.PushBack(StringRef(a.name()), allocator);
     }
 
-    params.AddMember("algo", algo, allocator);
-}
+    params.AddMember("algo",    algo, allocator);
+    params.AddMember("diff",    m_diff, allocator);
+    params.AddMember("height",  m_height, allocator);
 
-
-void xmrig::DonateStrategy::setJob(IClient *client, const Job &job, const rapidjson::Value &params)
-{
-    if (isActive()) {
-        m_listener->onJob(this, client, job, params);
+    if (!m_seed.empty()) {
+       params.AddMember("seed_hash", Cvt::toHex(m_seed, doc), allocator);
     }
 }
 

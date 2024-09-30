@@ -4,8 +4,8 @@
  * Copyright (c) 2014      Lucas Jones <https://github.com/lucasjones>
  * Copyright (c) 2014-2016 Wolf9466    <https://github.com/OhGodAPet>
  * Copyright (c) 2016      Jay D Dee   <jayddee246@gmail.com>
- * Copyright (c) 2018-2021 SChernykh   <https://github.com/SChernykh>
- * Copyright (c) 2016-2021 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2024 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2024 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -64,7 +64,9 @@ static inline const std::string &usage()
 
 #   ifdef XMRIG_FEATURE_HTTP
     u += "      --daemon                  use daemon RPC instead of pool for solo mining\n";
+    u += "      --daemon-zmq-port=N       daemon's zmq-pub port number (only use it if daemon has it enabled)\n";
     u += "      --daemon-poll-interval=N  daemon poll interval in milliseconds (default: 1000)\n";
+    u += "      --daemon-job-timeout=N    daemon job timeout in milliseconds (default: 15000)\n";
     u += "      --self-select=URL         self-select block templates from URL\n";
     u += "      --submit-to-origin        also submit solution back to self-select URL\n";
 #   endif
@@ -89,6 +91,9 @@ static inline const std::string &usage()
 #   ifdef XMRIG_OS_LINUX
     u += "      --hugepage-size=N         custom hugepage size in kB\n";
 #   endif
+#   ifdef XMRIG_ALGO_RANDOMX
+    u += "      --huge-pages-jit          enable huge pages support for RandomX JIT code\n";
+#   endif
     u += "      --asm=ASM                 ASM optimizations, possible values: auto, none, intel, ryzen, bulldozer\n";
 
 #   if defined(__x86_64__) || defined(_M_AMD64)
@@ -103,11 +108,6 @@ static inline const std::string &usage()
     u += "      --randomx-wrmsr=N         write custom value(s) to MSR registers or disable MSR mod (-1)\n";
     u += "      --randomx-no-rdmsr        disable reverting initial MSR values on exit\n";
     u += "      --randomx-cache-qos       enable Cache QoS\n";
-#   endif
-
-#   ifdef XMRIG_ALGO_ASTROBWT
-    u += "      --astrobwt-max-size=N     skip hashes with large stage 2 size, default: 550, min: 400, max: 1200\n";
-    u += "      --astrobwt-avx2           enable AVX2 optimizations for AstroBWT algorithm";
 #   endif
 
 #   ifdef XMRIG_FEATURE_OPENCL

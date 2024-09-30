@@ -1,6 +1,6 @@
 /* XMRig
- * Copyright (c) 2018-2021 SChernykh   <https://github.com/SChernykh>
- * Copyright (c) 2016-2021 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2023 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2023 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -29,11 +29,18 @@
 namespace xmrig {
 
 
-Storage<DnsUvBackend>& DnsUvBackend::getStorage()
+static Storage<DnsUvBackend> *storage = nullptr;
+
+
+Storage<DnsUvBackend> &DnsUvBackend::getStorage()
 {
-    static Storage<DnsUvBackend>* storage = new Storage<DnsUvBackend>();
+    if (storage == nullptr) {
+        storage = new Storage<DnsUvBackend>();
+    }
+
     return *storage;
 }
+
 
 static addrinfo hints{};
 
@@ -55,7 +62,14 @@ xmrig::DnsUvBackend::DnsUvBackend()
 
 xmrig::DnsUvBackend::~DnsUvBackend()
 {
-    getStorage().release(m_key);
+    assert(storage);
+
+    storage->release(m_key);
+
+    if (storage->isEmpty()) {
+        delete storage;
+        storage = nullptr;
+    }
 }
 
 

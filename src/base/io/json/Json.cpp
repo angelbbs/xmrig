@@ -1,6 +1,6 @@
 /* XMRig
- * Copyright (c) 2018-2020 SChernykh   <https://github.com/SChernykh>
- * Copyright (c) 2016-2020 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
+ * Copyright (c) 2018-2021 SChernykh   <https://github.com/SChernykh>
+ * Copyright (c) 2016-2021 XMRig       <https://github.com/xmrig>, <support@xmrig.com>
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
  *   along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "base/io/json/Json.h"
 #include "3rdparty/rapidjson/document.h"
 
@@ -30,7 +29,7 @@ namespace xmrig {
 
 static const rapidjson::Value kNullValue;
 
-}
+} // namespace xmrig
 
 
 bool xmrig::Json::getBool(const rapidjson::Value &obj, const char *key, bool defaultValue)
@@ -212,11 +211,13 @@ rapidjson::Value xmrig::Json::normalize(double value, bool zero)
 {
     using namespace rapidjson;
 
-    if (!std::isnormal(value)) {
+    const double value_rounded = floor(value * 100.0) / 100.0;
+
+    if (!std::isnormal(value) || !std::isnormal(value_rounded)) {
         return zero ? Value(0.0) : Value(kNullType);
     }
 
-    return Value(floor(value * 100.0) / 100.0);
+    return Value(value_rounded);
 }
 
 
