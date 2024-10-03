@@ -161,6 +161,7 @@ public:
 #   ifdef XMRIG_ALGO_GHOSTRIDER
     static const char* kGHOSTRIDER;
     static const char* kGHOSTRIDER_RTM;
+    static const char* kGHOSTRIDER_BENCHMARK;
 #   endif
 
     inline Algorithm() = default;

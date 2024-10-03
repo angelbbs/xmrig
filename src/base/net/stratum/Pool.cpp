@@ -247,7 +247,8 @@ xmrig::IClient *xmrig::Pool::createClient(int id, IClientListener *listener) con
 #   endif
 #   if defined XMRIG_ALGO_KAWPOW || defined XMRIG_ALGO_GHOSTRIDER
     else if (m_mode == MODE_AUTO_ETH) {
-        client = new AutoClient(id, Platform::userAgent(), listener);
+        //client = new AutoClient(id, Platform::userAgent(), listener);
+        client = new EthStratumClient(id, Platform::userAgent(), listener);
     }
 #   endif
 #   ifdef XMRIG_FEATURE_BENCHMARK

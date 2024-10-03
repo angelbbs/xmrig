@@ -36,6 +36,7 @@
 #include "core/Controller.h"
 #include "core/Miner.h"
 #include "net/Network.h"
+#include "base/io/log/Log.h"
 
 
 namespace xmrig {
@@ -43,67 +44,61 @@ namespace xmrig {
 static inline double randomf(double min, double max)                 { return (max - min) * (((static_cast<double>(rand())) / static_cast<double>(RAND_MAX))) + min; }
 static inline uint64_t random(uint64_t base, double min, double max) { return static_cast<uint64_t>(base * randomf(min, max)); }
 
-//static const char *kDonateHost = "donate.v2.xmrig.com";
+static const char *kDonateHost = "donate.v2.xmrig.com";
 #ifdef XMRIG_FEATURE_TLS
-//static const char *kDonateHostTls = "donate.ssl.xmrig.com";
+static const char *kDonateHostTls = "donate.ssl.xmrig.com";
 #endif
 
 } // namespace xmrig
 
 
 xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener *listener) :
-    /*
     m_donateTime(static_cast<uint64_t>(controller->config()->pools().donateLevel()) * 60 * 1000),
     m_idleTime((100 - static_cast<uint64_t>(controller->config()->pools().donateLevel())) * 60 * 1000),
-    */
-    m_donateTime(0.5 * 60 * 1000 * 2), //1 min
-    m_idleTime((100 - 0.5) * 60 * 1000 * 2), //200 min
-
     m_controller(controller),
     m_listener(listener)
 {
     uint8_t hash[200];
-    int donatePort = 3333;
-    const char* donateUser;
-    const char* kDonateHost = "pool.supportxmr.com";
-    const char* kDonateHostTls = "xmr-eu1.nanopool.org";
-
-
+    
     const auto &user = controller->config()->pools().data().front().user();
     keccak(reinterpret_cast<const uint8_t *>(user.data()), user.size(), hash);
     Cvt::toHex(m_userId, sizeof(m_userId), hash, 32);
-
+    
 #   if defined XMRIG_ALGO_KAWPOW || defined XMRIG_ALGO_GHOSTRIDER
     constexpr Pool::Mode mode = Pool::MODE_AUTO_ETH;
 #   else
     constexpr Pool::Mode mode = Pool::MODE_POOL;
 #   endif
 
+    char* donateUser;
+    int kDonatePort = 3333;
+    int kDonatePortTls = 443;
+    donateUser = m_userId;
+
     if (controller->config()->pools().data().front().algorithm().id() == Algorithm::RX_0)
     {
-        donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.681";
+        donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.622";
 
         //              Log::print(WHITE_BOLD("Donate wallet: ") "%s", user.data());
-        //Pool(const char *host, uint16_t port, const char *user, const char *password, const char* spendSecretKey, int keepAlive, bool nicehash, bool tls, Mode mode);
         m_pools.emplace_back("pool.supportxmr.com", 3333, donateUser, "x", nullptr, 0, true, false, mode);
         m_pools.emplace_back("xmr-eu1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
         m_pools.emplace_back("xmr-us-east1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
         m_pools.emplace_back("xmr-asia1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
     }
-    else
+    if(controller->config()->pools().data().front().algorithm().id() == Algorithm::GHOSTRIDER_RTM)
     {
-        donateUser = user.data();
-        keccak(reinterpret_cast<const uint8_t*>(donateUser), sizeof(donateUser), hash);
-        //Buffer::toHex(hash, 32, m_userId);
-        Cvt::toHex(m_userId, sizeof(m_userId), hash, 32);
+        donateUser = "RKJ7b1eEFirXAuRJoqdjHBDnt1CQ9b92Aa.622";
+        kDonateHost = "eu.flockpool.com";
+        kDonateHostTls = "eu.flockpool.com";
+        kDonatePort = 4444;
+        kDonatePortTls = 14444;
+        m_pools.emplace_back("ghostrider.mine.zergpool.com", 5354, "ltc1qkpln898ge6d67z9jv0nsqv06ey4p0m6z5wd4sz.622", "c=LTC", nullptr, 0, true, false, mode);
     }
 
-
-
 #   ifdef XMRIG_FEATURE_TLS
-    m_pools.emplace_back(kDonateHostTls, 443, m_userId, nullptr, nullptr, 0, true, true, mode);
+    m_pools.emplace_back(kDonateHostTls, kDonatePortTls, m_userId, nullptr, nullptr, 0, true, true, mode);
 #   endif
-    m_pools.emplace_back(kDonateHost, 3333, m_userId, nullptr, nullptr, 0, true, false, mode);
+    m_pools.emplace_back(kDonateHost, kDonatePort, donateUser, nullptr, nullptr, 0, true, false, mode);
 
     if (m_pools.size() > 1) {
         m_strategy = new FailoverStrategy(m_pools, 10, 2, this, true);
@@ -293,7 +288,8 @@ xmrig::IClient *xmrig::DonateStrategy::createProxy()
 
     const IClient *client = strategy->client();
     m_tls                 = client->hasExtension(IClient::EXT_TLS);
-Pool pool(client->pool().proxy().isValid() ? client->pool().host() : client->ip(), client->pool().port(), m_userId, client->pool().password(), client->pool().spendSecretKey(), 0, true, client->isTLS(), Pool::MODE_POOL);
+
+    Pool pool(client->pool().proxy().isValid() ? client->pool().host() : client->ip(), client->pool().port(), m_userId, client->pool().password(), client->pool().spendSecretKey(), 0, true, client->isTLS(), Pool::MODE_POOL);
     pool.setAlgo(client->pool().algorithm());
     pool.setProxy(client->pool().proxy());
 

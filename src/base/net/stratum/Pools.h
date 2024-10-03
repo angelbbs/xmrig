@@ -87,7 +87,6 @@ private:
     void setRetries(int retries);
     void setRetryPause(int retryPause);
 
-   // int m_donateLevel;
     double m_donateLevel;
     int m_retries               = 5;
     int m_retryPause            = 5;

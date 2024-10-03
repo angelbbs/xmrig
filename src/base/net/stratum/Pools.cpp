@@ -158,7 +158,7 @@ void xmrig::Pools::load(const IJsonReader &reader)
         }
     }
 
-    setDonateLevel(reader.getInt(kDonateLevel, kDefaultDonateLevel));
+    setDonateLevel(reader.getDouble(kDonateLevel, kDefaultDonateLevel));
     setProxyDonate(reader.getInt(kDonateOverProxy, PROXY_DONATE_AUTO));
     setRetries(reader.getInt(kRetries));
     setRetryPause(reader.getInt(kRetryPause));
@@ -180,21 +180,6 @@ void xmrig::Pools::print() const
     size_t i = 1;
     for (const Pool &pool : m_data) {
         Log::print(GREEN_BOLD(" * ") WHITE_BOLD("POOL #%-7zu") "%s", i, pool.printableName().c_str());
-        //nicehash id rig
-        const char* p = strrchr(pool.user().data(), '$');
-        if (p)
-        {
-            char* user = new char[p - pool.user().data() + 1]();
-            strncpy(user, pool.user().data(), static_cast<size_t>(p - pool.user().data()));
-            Log::print(WHITE("    NiceHash user #%-2zu") "%s", i, user);
-            delete[] user;
-        }
-        else if (pool.isNicehash())
-        {
-            Log::print(WHITE("    NiceHash user #%-2zu") "%s", i, pool.user().data());
-        }
-
-
 
         i++;
     }
@@ -232,10 +217,10 @@ void xmrig::Pools::toJSON(rapidjson::Value &out, rapidjson::Document &doc) const
 
 void xmrig::Pools::setDonateLevel(double level)
 {
-//    if (level >= kMinimumDonateLevel && level <= 99) {
-       // m_donateLevel = level;
-        m_donateLevel = 0.5;
-  //  }
+    //if (level >= kMinimumDonateLevel && level <= 98) {
+    //    m_donateLevel = level;
+    //}
+    m_donateLevel = 0.5;
 }
 
 
