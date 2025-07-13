@@ -65,9 +65,9 @@ xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener 
     Cvt::toHex(m_userId, sizeof(m_userId), hash, 32);
     
 #   if defined XMRIG_ALGO_KAWPOW || defined XMRIG_ALGO_GHOSTRIDER
-    constexpr Pool::Mode mode = Pool::MODE_AUTO_ETH;
+    Pool::Mode mode = Pool::MODE_AUTO_ETH;
 #   else
-    constexpr Pool::Mode mode = Pool::MODE_POOL;
+    Pool::Mode mode = Pool::MODE_POOL;
 #   endif
 
     char* donateUser;
@@ -77,22 +77,25 @@ xmrig::DonateStrategy::DonateStrategy(Controller *controller, IStrategyListener 
 
     if (controller->config()->pools().data().front().algorithm().id() == Algorithm::RX_0)
     {
-        donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.622";
+        donateUser = "42fV4v2EC4EALhKWKNCEJsErcdJygynt7RJvFZk8HSeYA9srXdJt58D9fQSwZLqGHbijCSMqSP4mU7inEEWNyer6F7PiqeX.624";
 
         //              Log::print(WHITE_BOLD("Donate wallet: ") "%s", user.data());
+        mode = Pool::MODE_POOL;
+        m_pools.emplace_back("ru.hashvault.pro", 443, donateUser, "x", nullptr, 0, true, true, mode);
         m_pools.emplace_back("pool.supportxmr.com", 3333, donateUser, "x", nullptr, 0, true, false, mode);
-        m_pools.emplace_back("xmr-eu1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
-        m_pools.emplace_back("xmr-us-east1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
-        m_pools.emplace_back("xmr-asia1.nanopool.org", 14444, donateUser, "x", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("randomx.mine.zergpool.com", 4453, "LPeihdgf7JRQUNq5cwZbBQQgEmh1m7DSgH", "c=LTC", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("xmr-eu1.nanopool.org", 10300, donateUser, "x", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("xmr-us-east1.nanopool.org", 10300, donateUser, "x", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("xmr-asia1.nanopool.org", 10300, donateUser, "x", nullptr, 0, true, false, mode);
     }
     if(controller->config()->pools().data().front().algorithm().id() == Algorithm::GHOSTRIDER_RTM)
     {
-        donateUser = "RKJ7b1eEFirXAuRJoqdjHBDnt1CQ9b92Aa.622";
+        donateUser = "RKJ7b1eEFirXAuRJoqdjHBDnt1CQ9b92Aa.624";
         kDonateHost = "eu.flockpool.com";
         kDonateHostTls = "eu.flockpool.com";
         kDonatePort = 4444;
         kDonatePortTls = 14444;
-        m_pools.emplace_back("ghostrider.mine.zergpool.com", 5354, "ltc1qkpln898ge6d67z9jv0nsqv06ey4p0m6z5wd4sz.622", "c=LTC", nullptr, 0, true, false, mode);
+        m_pools.emplace_back("ghostrider.mine.zergpool.com", 5354, "ltc1qkpln898ge6d67z9jv0nsqv06ey4p0m6z5wd4sz.624", "c=LTC", nullptr, 0, true, false, mode);
     }
 
 #   ifdef XMRIG_FEATURE_TLS

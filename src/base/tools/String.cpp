@@ -147,7 +147,7 @@ xmrig::String &xmrig::String::toLower()
     }
 
     for (size_t i = 0; i < size(); ++i) {
-        m_data[i] = static_cast<char>(tolower(m_data[i]));
+        m_data[i] = static_cast<char>(toupper(m_data[i]));
     }
 
     return *this;

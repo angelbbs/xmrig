@@ -280,7 +280,7 @@ void xmrig::HttpContext::attach(llhttp_settings_t *settings)
 
 void xmrig::HttpContext::setHeader()
 {
-    std::transform(m_lastHeaderField.begin(), m_lastHeaderField.end(), m_lastHeaderField.begin(), ::tolower);
+    std::transform(m_lastHeaderField.begin(), m_lastHeaderField.end(), m_lastHeaderField.begin(), ::toupper);
     headers.insert({ m_lastHeaderField, m_lastHeaderValue });
 
     m_lastHeaderField.clear();
